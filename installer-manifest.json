@@ -3,7 +3,6 @@
   "loaderFile": "live-translator-loader.js",
   "supportDirectory": "live-translator",
   "supportFiles": [
-    "README_Translator.md",
     "control-code-helpers.js",
     "disk-cache.js",
     "hooks.js",
