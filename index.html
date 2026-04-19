@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RPG Translator Installer</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="panel primary-panel">
+        <p class="eyebrow">Static browser installer</p>
+        <h1>Install the live translator into an RPG Maker game folder</h1>
+        <p class="intro">
+          Choose the game root, let the page detect the folder layout, and write the
+          plugin files directly from the browser.
+        </p>
+        <div class="actions">
+          <button id="pick-folder-button" type="button">Choose Game Folder</button>
+          <button id="install-button" type="button" disabled>Install</button>
+        </div>
+        <p id="support-note" class="support-note"></p>
+      </section>
+
+      <section class="panel">
+        <h2>Detected Folder</h2>
+        <dl class="facts">
+          <div>
+            <dt>Folder</dt>
+            <dd id="folder-name">Nothing selected</dd>
+          </div>
+          <div>
+            <dt>Status</dt>
+            <dd id="folder-status">Waiting for a folder selection.</dd>
+          </div>
+          <div>
+            <dt>Layout</dt>
+            <dd id="folder-layout">Unknown</dd>
+          </div>
+          <div>
+            <dt>Plugin target</dt>
+            <dd id="plugin-target">Unknown</dd>
+          </div>
+          <div>
+            <dt>plugins.js</dt>
+            <dd id="plugins-file">Unknown</dd>
+          </div>
+        </dl>
+        <div class="package-block">
+          <h3>Package files</h3>
+          <ul id="package-list" class="package-list">
+            <li>Nothing inspected yet.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Activity</h2>
+        <ol id="log-list" class="log-list">
+          <li class="log-entry info">Waiting to load the installer bundle.</li>
+        </ol>
+      </section>
+    </main>
+
+    <script type="module" src="./app.mjs"></script>
+  </body>
+</html>

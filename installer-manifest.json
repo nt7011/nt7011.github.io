@@ -1,0 +1,20 @@
+{
+  "bundleDirectory": "live-translator-installer",
+  "loaderFile": "live-translator-loader.js",
+  "supportDirectory": "live-translator",
+  "supportFiles": [
+    "README_Translator.md",
+    "control-code-helpers.js",
+    "disk-cache.js",
+    "hooks.js",
+    "logger.js",
+    "settings.json",
+    "text-replacement-addon.js",
+    "translation-manager.js",
+    "translator.js",
+    "translator.json",
+    "window-draw-hooks.js",
+    "window-helpers.js"
+  ],
+  "pluginEntry": "{\"name\":\"live-translator-loader\",\"status\":true,\"description\":\"Entry point for the live translation system\",\"parameters\":{}},"
+}
