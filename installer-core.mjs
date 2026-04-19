@@ -1,4 +1,10 @@
 export const LOADER_PLUGIN_NAME = "live-translator-loader";
+export const CONFIG_FILE_MAP = Object.freeze({
+  settings: "settings.json",
+  translator: "translator.json",
+});
+
+const CONFIG_FILE_NAMES = new Set(Object.values(CONFIG_FILE_MAP));
 
 export function patchEmptyPackageName(text) {
   if (!/("name"\s*:\s*)""/.test(text)) {
@@ -40,6 +46,79 @@ export async function loadManifest(url = new URL("./installer-manifest.json", im
   }
 
   return response.json();
+}
+
+export async function loadInstalledConfigs(rootHandle, manifest) {
+  if (!rootHandle) {
+    return {
+      available: false,
+      configs: null,
+      supportDirectoryPath: null,
+      reason: "Select a game folder to load installed settings.json and translator.json.",
+      warnings: [],
+    };
+  }
+
+  const inspection = await inspectGameDirectory(rootHandle);
+  if (!inspection.valid) {
+    return {
+      available: false,
+      configs: null,
+      supportDirectoryPath: null,
+      reason: inspection.reason,
+      warnings: [],
+    };
+  }
+
+  const supportDirectoryPath = `${inspection.pluginsDirPath}/${manifest.supportDirectory}`;
+  const supportDirHandle = await tryGetDirectoryHandle(
+    inspection.pluginsDirHandle,
+    manifest.supportDirectory,
+  );
+  if (!supportDirHandle) {
+    return {
+      available: false,
+      configs: null,
+      supportDirectoryPath,
+      reason: `No installed live-translator config found in ${supportDirectoryPath}. Install the plugin first.`,
+      warnings: [],
+    };
+  }
+
+  const configs = {};
+  for (const [key, fileName] of Object.entries(CONFIG_FILE_MAP)) {
+    const fileHandle = await tryGetFileHandle(supportDirHandle, fileName);
+    if (!fileHandle) {
+      return {
+        available: false,
+        configs: null,
+        supportDirectoryPath,
+        reason: `Installed config is incomplete. Missing ${supportDirectoryPath}/${fileName}.`,
+        warnings: [],
+      };
+    }
+
+    try {
+      const data = await readTextFile(fileHandle);
+      configs[key] = JSON.parse(data.text);
+    } catch (error) {
+      return {
+        available: false,
+        configs: null,
+        supportDirectoryPath,
+        reason: `Could not parse ${supportDirectoryPath}/${fileName}: ${error.message}.`,
+        warnings: [],
+      };
+    }
+  }
+
+  return {
+    available: true,
+    configs,
+    supportDirectoryPath,
+    reason: `Editing installed settings.json and translator.json in ${supportDirectoryPath}.`,
+    warnings: [],
+  };
 }
 
 export async function ensureReadWritePermission(handle) {
@@ -237,9 +316,18 @@ export async function installGame(rootHandle, manifest, options = {}) {
     log(`Created plugin support directory at ${inspection.pluginsDirPath}/${manifest.supportDirectory}.`, "info");
   }
 
+  let supportFilesCopied = 0;
   for (const file of bundle.supportFiles) {
-    const supportFileHandle = await supportDirHandle.getFileHandle(file.name, { create: true });
+    const existingSupportFileHandle = await tryGetFileHandle(supportDirHandle, file.name);
+    if (CONFIG_FILE_NAMES.has(file.name) && existingSupportFileHandle) {
+      log(`Kept existing ${file.name} in ${inspection.pluginsDirPath}/${manifest.supportDirectory}.`, "info");
+      continue;
+    }
+
+    const supportFileHandle = existingSupportFileHandle
+      ?? (await supportDirHandle.getFileHandle(file.name, { create: true }));
     await writeBytes(supportFileHandle, file.bytes);
+    supportFilesCopied += 1;
     log(`Copied ${file.name} into ${inspection.pluginsDirPath}/${manifest.supportDirectory}.`, "success");
   }
 
@@ -270,8 +358,39 @@ export async function installGame(rootHandle, manifest, options = {}) {
   return {
     packageUpdates,
     pluginEntryAdded,
-    filesCopied: 1 + bundle.supportFiles.length,
+    filesCopied: 1 + supportFilesCopied,
     supportDirectory: `${inspection.pluginsDirPath}/${manifest.supportDirectory}`,
+  };
+}
+
+export async function saveInstalledConfigs(rootHandle, manifest, configs) {
+  const inspection = await inspectGameDirectory(rootHandle);
+  if (!inspection.valid) {
+    throw new Error(inspection.reason);
+  }
+
+  const supportDirectoryPath = `${inspection.pluginsDirPath}/${manifest.supportDirectory}`;
+  const supportDirHandle = await tryGetDirectoryHandle(
+    inspection.pluginsDirHandle,
+    manifest.supportDirectory,
+  );
+  if (!supportDirHandle) {
+    throw new Error(`No installed live-translator config found in ${supportDirectoryPath}. Install the plugin first.`);
+  }
+
+  for (const [key, fileName] of Object.entries(CONFIG_FILE_MAP)) {
+    const fileHandle = await tryGetFileHandle(supportDirHandle, fileName);
+    if (!fileHandle) {
+      throw new Error(`Installed config is incomplete. Missing ${supportDirectoryPath}/${fileName}.`);
+    }
+
+    const existingData = await readTextFile(fileHandle);
+    await writeTextFile(fileHandle, serializeConfigFile(configs[key]), existingData.hasBom);
+  }
+
+  return {
+    savedFiles: [...CONFIG_FILE_NAMES],
+    supportDirectory: supportDirectoryPath,
   };
 }
 
@@ -315,8 +434,7 @@ async function readTextFile(fileHandle) {
 }
 
 async function writeTextFile(fileHandle, text, hasBom) {
-  const encoder = new TextEncoder();
-  const encodedText = encoder.encode(text);
+  const encodedText = encodeTextBytes(text);
   const bytes = hasBom
     ? prependUtf8Bom(encodedText)
     : encodedText;
@@ -335,6 +453,15 @@ function prependUtf8Bom(bytes) {
   output.set([0xef, 0xbb, 0xbf], 0);
   output.set(bytes, 3);
   return output;
+}
+
+function encodeTextBytes(text) {
+  const encoder = new TextEncoder();
+  return encoder.encode(text);
+}
+
+function serializeConfigFile(config) {
+  return `${JSON.stringify(config, null, 4)}\n`;
 }
 
 async function tryGetDirectoryHandle(parentHandle, name) {

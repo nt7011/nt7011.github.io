@@ -101,9 +101,19 @@ button {
   cursor: pointer;
 }
 
+#reset-config-button {
+  background: var(--panel-bg);
+  color: var(--accent-strong);
+}
+
 button:hover:enabled,
 button:focus-visible:enabled {
   background: var(--accent-strong);
+}
+
+#reset-config-button:hover:enabled,
+#reset-config-button:focus-visible:enabled {
+  color: #fff;
 }
 
 button:disabled {
@@ -139,6 +149,112 @@ button:disabled {
   margin-top: 20px;
   padding-top: 16px;
   border-top: 1px solid var(--border);
+}
+
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.config-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.section-note {
+  margin-top: 8px;
+  color: var(--muted);
+}
+
+.config-file-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.config-file-note,
+.config-empty {
+  margin-top: 8px;
+  color: var(--muted);
+}
+
+.config-fields {
+  margin-top: 16px;
+}
+
+.config-group + .config-group {
+  margin-top: 20px;
+}
+
+.config-group-title {
+  margin-bottom: 12px;
+  text-transform: capitalize;
+}
+
+.config-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.config-label,
+.config-checkbox {
+  font-weight: 600;
+}
+
+.config-label code,
+.config-checkbox code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.config-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+
+.config-checkbox input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.config-field input,
+.config-field textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+}
+
+.config-field textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.config-field input:focus,
+.config-field textarea:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  outline-offset: 1px;
+}
+
+.config-field input[aria-invalid="true"] {
+  border-color: var(--error);
 }
 
 .package-list,
@@ -221,6 +337,19 @@ button:disabled {
   }
 
   button {
+    width: 100%;
+  }
+
+  .section-heading {
+    flex-direction: column;
+  }
+
+  .config-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .config-actions button {
     width: 100%;
   }
 

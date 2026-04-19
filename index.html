@@ -71,6 +71,37 @@
       </section>
 
       <section class="panel">
+        <div class="section-heading">
+          <div>
+            <h2>Configuration</h2>
+            <p id="config-status" class="section-note">
+              Select a game folder to load installed settings.json and translator.json.
+            </p>
+          </div>
+          <div class="config-actions">
+            <button id="save-config-button" type="button" disabled>Save Config</button>
+            <button id="reset-config-button" type="button" disabled>Reset Config</button>
+          </div>
+        </div>
+
+        <section class="config-file-section" aria-labelledby="settings-config-heading">
+          <h3 id="settings-config-heading">settings.json</h3>
+          <p class="config-file-note">Plugin logging, redraw, translation, and cache settings.</p>
+          <div id="settings-config-fields" class="config-fields">
+            <p class="config-empty">Installed configuration will appear here after the plugin is present in the selected folder.</p>
+          </div>
+        </section>
+
+        <section class="config-file-section" aria-labelledby="translator-config-heading">
+          <h3 id="translator-config-heading">translator.json</h3>
+          <p class="config-file-note">Provider, model, prompt, and DeepL connection settings.</p>
+          <div id="translator-config-fields" class="config-fields">
+            <p class="config-empty">Installed configuration will appear here after the plugin is present in the selected folder.</p>
+          </div>
+        </section>
+      </section>
+
+      <section class="panel">
         <h2>Activity</h2>
         <ol id="log-list" class="log-list">
           <li class="log-entry info">Waiting to load the installer bundle.</li>
