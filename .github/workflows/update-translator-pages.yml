@@ -2,6 +2,9 @@ name: Update Translator Pages
 
 on:
   workflow_dispatch:
+  repository_dispatch:
+    types:
+      - translator_release_updated
   push:
     branches:
       - master
