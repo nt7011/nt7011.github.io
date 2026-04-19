@@ -6,6 +6,18 @@ export function configDraftsEqual(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+export function getValueAtPath(target, path) {
+  let current = target;
+  for (const segment of path) {
+    if (current === null || typeof current === "undefined") {
+      return undefined;
+    }
+    current = current[segment];
+  }
+
+  return current;
+}
+
 export function buildConfigGroups(config) {
   if (!isContainer(config)) {
     return [{
@@ -52,7 +64,11 @@ export function setValueAtPath(target, path, value) {
 
   let current = target;
   for (let index = 0; index < path.length - 1; index += 1) {
-    current = current[path[index]];
+    const segment = path[index];
+    if (current[segment] === null || typeof current[segment] === "undefined") {
+      current[segment] = typeof path[index + 1] === "number" ? [] : {};
+    }
+    current = current[segment];
   }
 
   current[path[path.length - 1]] = value;

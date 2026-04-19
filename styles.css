@@ -200,31 +200,83 @@ button:disabled {
   gap: 12px;
 }
 
+.config-toggle-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+}
+
 .config-field {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
+.config-field.checkbox-field {
+  width: fit-content;
+  max-width: 34rem;
+}
+
+.config-field-description {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.config-field-error {
+  color: var(--error);
+  font-size: 0.95rem;
+}
+
 .config-label,
+.config-toggle-option,
 .config-checkbox {
   font-weight: 600;
 }
 
 .config-label code,
+.config-toggle-option code,
 .config-checkbox code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   overflow-wrap: anywhere;
 }
 
+.config-toggle-option,
 .config-checkbox {
   display: flex;
   align-items: center;
   gap: 10px;
   min-height: 44px;
+  width: fit-content;
 }
 
+.config-toggle-option code {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.config-toggle-option input,
 .config-checkbox input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.config-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.config-radio-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-weight: 600;
+}
+
+.config-radio-option input {
   width: 18px;
   height: 18px;
   margin: 0;

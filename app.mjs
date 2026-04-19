@@ -7,11 +7,47 @@ import {
   saveInstalledConfigs,
 } from "./installer-core.mjs";
 import {
-  buildConfigGroups,
   cloneConfigSet,
   configDraftsEqual,
+  getValueAtPath,
   setValueAtPath,
 } from "./config-editor.mjs";
+
+const SETTINGS_FIELD = {
+  id: "translation.disableCjkFilter",
+  path: ["translation", "disableCjkFilter"],
+  inputKind: "checkbox",
+  label: "disableCjkFilter",
+  description: "When turned on, only translates ingame text in Chinese, Japanese, or Korean",
+};
+
+const LOCAL_TRANSLATOR_FIELDS = [
+  { id: "settings.local.address", path: ["settings", "local", "address"], inputKind: "text", label: "address" },
+  { id: "settings.local.port", path: ["settings", "local", "port"], inputKind: "number", label: "port" },
+  { id: "settings.local.model", path: ["settings", "local", "model"], inputKind: "text", label: "model" },
+  {
+    id: "settings.local.system_prompt",
+    path: ["settings", "local", "system_prompt"],
+    inputKind: "textarea",
+    label: "system_prompt",
+  },
+  { id: "settings.local.temperature", path: ["settings", "local", "temperature"], inputKind: "number", label: "temperature" },
+  { id: "settings.local.top_p", path: ["settings", "local", "top_p"], inputKind: "number", label: "top_p" },
+  { id: "settings.local.top_k", path: ["settings", "local", "top_k"], inputKind: "number", label: "top_k" },
+  { id: "settings.local.min_p", path: ["settings", "local", "min_p"], inputKind: "number", label: "min_p" },
+  {
+    id: "settings.local.repeat_penalty",
+    path: ["settings", "local", "repeat_penalty"],
+    inputKind: "number",
+    label: "repeat_penalty",
+  },
+];
+
+const DEEPL_TRANSLATOR_FIELDS = [
+  { id: "settings.deepl.language", path: ["settings", "deepl", "language"], inputKind: "text", label: "language" },
+  { id: "settings.deepl.apiKey", path: ["settings", "deepl", "apiKey"], inputKind: "sensitive-text", label: "apiKey" },
+];
+const DEEPL_APIKEY_PLACEHOLDER_SUBSTRING = "__NONE__";
 
 const state = {
   manifest: null,
@@ -133,6 +169,13 @@ async function handleInstall() {
 }
 
 async function handleSaveConfig() {
+  const validationError = getConfigValidationError();
+  if (validationError) {
+    pushLog(`Saving configuration failed: ${validationError}`, "error");
+    render();
+    return;
+  }
+
   if (!canSaveConfig()) {
     return;
   }
@@ -276,9 +319,12 @@ function renderFolderDetails() {
 
 function renderConfigStatus() {
   let message = state.configStatusMessage;
+  const validationError = getConfigValidationError();
 
   if (state.configDraft) {
-    if (state.configErrors.size > 0) {
+    if (validationError) {
+      message += ` Error: ${validationError}`;
+    } else if (state.configErrors.size > 0) {
       message += ` Fix ${state.configErrors.size} invalid number field${state.configErrors.size === 1 ? "" : "s"} before saving.`;
     } else if (hasUnsavedConfigChanges()) {
       message += " Unsaved changes.";
@@ -291,11 +337,11 @@ function renderConfigStatus() {
 }
 
 function renderConfigEditor() {
-  renderConfigFields(settingsConfigFields, "settings", state.configDraft?.settings);
-  renderConfigFields(translatorConfigFields, "translator", state.configDraft?.translator);
+  renderSettingsConfig(settingsConfigFields, state.configDraft?.settings);
+  renderTranslatorConfig(translatorConfigFields, state.configDraft?.translator);
 }
 
-function renderConfigFields(container, configKey, config) {
+function renderSettingsConfig(container, config) {
   container.textContent = "";
 
   if (typeof config === "undefined") {
@@ -306,51 +352,129 @@ function renderConfigFields(container, configKey, config) {
     return;
   }
 
-  const groups = buildConfigGroups(config);
-  if (groups.length === 0) {
+  const section = document.createElement("section");
+  section.className = "config-group";
+
+  const heading = document.createElement("h4");
+  heading.className = "config-group-title";
+  heading.textContent = "Translation";
+  section.append(heading);
+
+  const fieldGrid = document.createElement("div");
+  fieldGrid.className = "config-toggle-grid";
+  fieldGrid.append(
+    buildFieldInput(
+      "settings",
+      SETTINGS_FIELD,
+      getValueAtPath(config, SETTINGS_FIELD.path),
+    ),
+  );
+
+  section.append(fieldGrid);
+  container.append(section);
+}
+
+function renderTranslatorConfig(container, config) {
+  container.textContent = "";
+
+  if (typeof config === "undefined") {
     const placeholder = document.createElement("p");
     placeholder.className = "config-empty";
-    placeholder.textContent = "No editable fields found in this file.";
+    placeholder.textContent = "Installed configuration will appear here after the plugin is present in the selected folder.";
     container.append(placeholder);
     return;
   }
 
-  for (const group of groups) {
-    const section = document.createElement("section");
-    section.className = "config-group";
+  const providerSection = document.createElement("section");
+  providerSection.className = "config-group";
 
-    const heading = document.createElement("h4");
-    heading.className = "config-group-title";
-    heading.textContent = group.label;
-    section.append(heading);
+  const providerHeading = document.createElement("h4");
+  providerHeading.className = "config-group-title";
+  providerHeading.textContent = "Provider";
+  providerSection.append(providerHeading);
+  providerSection.append(buildProviderToggle(config));
+  container.append(providerSection);
 
-    const fieldGrid = document.createElement("div");
-    fieldGrid.className = "config-field-grid";
+  const provider = getSelectedProvider(config);
+  const settingsSection = document.createElement("section");
+  settingsSection.className = "config-group";
 
-    for (const field of group.fields) {
-      fieldGrid.append(buildFieldInput(configKey, field));
-    }
+  const settingsHeading = document.createElement("h4");
+  settingsHeading.className = "config-group-title";
+  settingsHeading.textContent = provider === "deepl" ? "DeepL Settings" : "Local Settings";
+  settingsSection.append(settingsHeading);
 
-    section.append(fieldGrid);
-    container.append(section);
+  const fieldGrid = document.createElement("div");
+  fieldGrid.className = "config-field-grid";
+
+  const activeFields = provider === "deepl" ? DEEPL_TRANSLATOR_FIELDS : LOCAL_TRANSLATOR_FIELDS;
+  for (const field of activeFields) {
+    fieldGrid.append(
+      buildFieldInput(
+        "translator",
+        field,
+        getValueAtPath(config, field.path),
+      ),
+    );
   }
+
+  settingsSection.append(fieldGrid);
+  container.append(settingsSection);
 }
 
-function buildFieldInput(configKey, field) {
+function buildProviderToggle(config) {
+  const provider = getSelectedProvider(config);
+  const group = document.createElement("div");
+  group.className = "config-radio-group";
+
+  for (const option of [
+    { value: "local", label: "local" },
+    { value: "deepl", label: "deepl" },
+  ]) {
+    const label = document.createElement("label");
+    label.className = "config-radio-option";
+
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = "translator-provider";
+    input.value = option.value;
+    input.checked = provider === option.value;
+    input.addEventListener("change", () => {
+      setValueAtPath(state.configDraft.translator, ["provider"], option.value);
+      clearConfigErrorsByPrefix("translator:");
+      renderConfigEditor();
+      renderConfigStatus();
+      renderActionState();
+    });
+
+    const text = document.createElement("code");
+    text.textContent = option.label;
+
+    label.append(input, text);
+    group.append(label);
+  }
+
+  return group;
+}
+
+function buildFieldInput(configKey, field, currentValue) {
   const wrapper = document.createElement("div");
   wrapper.className = "config-field";
+  if (field.inputKind === "checkbox") {
+    wrapper.classList.add("checkbox-field");
+  }
   const errorKey = `${configKey}:${field.id}`;
 
   const inputId = `${configKey}-${field.id.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "") || "value"}`;
   if (field.inputKind === "checkbox") {
     const label = document.createElement("label");
-    label.className = "config-checkbox";
+    label.className = "config-toggle-option";
     label.setAttribute("for", inputId);
 
     const input = document.createElement("input");
     input.id = inputId;
     input.type = "checkbox";
-    input.checked = Boolean(field.value);
+    input.checked = Boolean(currentValue);
     input.addEventListener("change", () => {
       setValueAtPath(state.configDraft[configKey], field.path, input.checked);
       clearFieldError(errorKey, input);
@@ -363,6 +487,14 @@ function buildFieldInput(configKey, field) {
 
     label.append(input, text);
     wrapper.append(label);
+
+    if (field.description) {
+      const description = document.createElement("p");
+      description.className = "config-field-description";
+      description.textContent = field.description;
+      wrapper.append(description);
+    }
+
     return wrapper;
   }
 
@@ -375,18 +507,37 @@ function buildFieldInput(configKey, field) {
   label.append(pathText);
   wrapper.append(label);
 
-  const input = createFieldControl(field, inputId);
+  const input = createFieldControl(field, inputId, currentValue);
+  if (hasFieldValidationError(configKey, field)) {
+    input.setAttribute("aria-invalid", "true");
+  }
   attachFieldHandler(configKey, field, input);
   wrapper.append(input);
+
+  const fieldValidationError = getFieldValidationError(configKey, field);
+  if (fieldValidationError) {
+    const errorText = document.createElement("p");
+    errorText.className = "config-field-error";
+    errorText.textContent = fieldValidationError;
+    wrapper.append(errorText);
+  }
+
+  if (field.description) {
+    const description = document.createElement("p");
+    description.className = "config-field-description";
+    description.textContent = field.description;
+    wrapper.append(description);
+  }
+
   return wrapper;
 }
 
-function createFieldControl(field, inputId) {
+function createFieldControl(field, inputId, currentValue) {
   if (field.inputKind === "textarea") {
     const textarea = document.createElement("textarea");
     textarea.id = inputId;
-    textarea.rows = getTextareaRows(field.value);
-    textarea.value = String(field.value ?? "");
+    textarea.rows = getTextareaRows(currentValue);
+    textarea.value = String(currentValue ?? "");
     textarea.spellcheck = false;
     return textarea;
   }
@@ -398,13 +549,15 @@ function createFieldControl(field, inputId) {
   if (field.inputKind === "number") {
     input.type = "number";
     input.step = "any";
-    input.value = String(field.value);
+    input.value = typeof currentValue === "undefined" ? "" : String(currentValue);
     return input;
   }
 
   input.type = field.inputKind === "secret" ? "password" : "text";
-  input.autocomplete = field.inputKind === "secret" ? "new-password" : "off";
-  input.value = String(field.value ?? "");
+  input.autocomplete = field.inputKind === "secret" || field.inputKind === "sensitive-text"
+    ? "new-password"
+    : "off";
+  input.value = String(currentValue ?? "");
   return input;
 }
 
@@ -452,6 +605,12 @@ function clearFieldError(fieldId, input) {
   input.removeAttribute("aria-invalid");
 }
 
+function clearConfigErrorsByPrefix(prefix) {
+  state.configErrors = new Set(
+    [...state.configErrors].filter((fieldId) => !fieldId.startsWith(prefix)),
+  );
+}
+
 function renderLog() {
   logList.textContent = "";
 
@@ -494,6 +653,7 @@ function canSaveConfig() {
       && state.loadedConfigs
       && state.configDraft
       && state.configErrors.size === 0
+      && !getConfigValidationError()
       && hasUnsavedConfigChanges()
       && supportsInstallation(),
   );
@@ -505,6 +665,39 @@ function hasUnsavedConfigChanges() {
       && state.configDraft
       && !configDraftsEqual(state.loadedConfigs, state.configDraft),
   );
+}
+
+function getSelectedProvider(config) {
+  return getValueAtPath(config, ["provider"]) === "deepl" ? "deepl" : "local";
+}
+
+function getConfigValidationError() {
+  if (!state.configDraft?.translator) {
+    return null;
+  }
+
+  if (getSelectedProvider(state.configDraft.translator) !== "deepl") {
+    return null;
+  }
+
+  const apiKey = String(getValueAtPath(state.configDraft.translator, ["settings", "deepl", "apiKey"]) ?? "");
+  if (apiKey.includes(DEEPL_APIKEY_PLACEHOLDER_SUBSTRING)) {
+    return `DeepL apiKey cannot contain "${DEEPL_APIKEY_PLACEHOLDER_SUBSTRING}".`;
+  }
+
+  return null;
+}
+
+function hasFieldValidationError(configKey, field) {
+  return Boolean(getFieldValidationError(configKey, field));
+}
+
+function getFieldValidationError(configKey, field) {
+  if (configKey === "translator" && field.id === "settings.deepl.apiKey") {
+    return getConfigValidationError();
+  }
+
+  return null;
 }
 
 function getTextareaRows(value) {

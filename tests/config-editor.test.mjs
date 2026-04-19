@@ -5,6 +5,7 @@ import {
   buildConfigGroups,
   cloneConfigSet,
   configDraftsEqual,
+  getValueAtPath,
   setValueAtPath,
 } from "../config-editor.mjs";
 
@@ -101,4 +102,17 @@ test("setValueAtPath updates nested objects without rebuilding the whole config"
     }),
     false,
   );
+});
+
+test("setValueAtPath creates missing nested containers and getValueAtPath reads them back", () => {
+  const draft = cloneConfigSet({
+    translator: {},
+  });
+
+  setValueAtPath(draft.translator, ["settings", "deepl", "apiKey"], "abc123");
+  setValueAtPath(draft.translator, ["settings", "local", "port"], 1234);
+
+  assert.equal(getValueAtPath(draft.translator, ["settings", "deepl", "apiKey"]), "abc123");
+  assert.equal(getValueAtPath(draft.translator, ["settings", "local", "port"]), 1234);
+  assert.equal(getValueAtPath(draft.translator, ["settings", "local", "model"]), undefined);
 });
