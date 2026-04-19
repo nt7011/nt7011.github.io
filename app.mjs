@@ -286,7 +286,7 @@ function renderSupportNote() {
   }
 
   if (!state.rootHandle) {
-    supportNote.textContent = "Select the game folder that contains js/plugins or www/js/plugins.";
+    supportNote.textContent = "Select the game folder that contains Game.exe.";
     return;
   }
 
