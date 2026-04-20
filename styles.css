@@ -127,6 +127,17 @@ button:disabled {
   color: var(--muted);
 }
 
+.config-alert {
+  display: none;
+  margin-top: 8px;
+  color: var(--error);
+  font-weight: 600;
+}
+
+.config-alert.is-visible {
+  display: block;
+}
+
 .facts {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -183,6 +194,15 @@ button:disabled {
 
 .config-fields {
   margin-top: 16px;
+}
+
+.config-fields.is-locked {
+  opacity: 0.78;
+}
+
+.config-fields.is-locked input,
+.config-fields.is-locked textarea {
+  cursor: not-allowed;
 }
 
 .config-group + .config-group {

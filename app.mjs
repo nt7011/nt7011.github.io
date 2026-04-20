@@ -133,8 +133,11 @@ const state = {
   busy: false,
   busyAction: null,
   logs: [],
+  existingInstallationDetected: false,
   loadedConfigs: null,
   configDraft: null,
+  configEditable: false,
+  configAlertMessage: "",
   configStatusMessage: t("config.status.initial"),
   configErrors: new Set(),
 };
@@ -144,6 +147,7 @@ const installButton = document.querySelector("#install-button");
 const saveConfigButton = document.querySelector("#save-config-button");
 const resetConfigButton = document.querySelector("#reset-config-button");
 const supportNote = document.querySelector("#support-note");
+const configAlert = document.querySelector("#config-alert");
 const folderName = document.querySelector("#folder-name");
 const folderStatus = document.querySelector("#folder-status");
 const folderLayout = document.querySelector("#folder-layout");
@@ -196,6 +200,10 @@ async function initialize() {
       }),
       "info",
     );
+
+    if (state.rootHandle) {
+      await refreshInstalledConfigSnapshot({ logOutcome: false });
+    }
   } catch (error) {
     pushLog(t("error.loadBundle", { message: error.message }), "error");
   }
@@ -241,9 +249,11 @@ async function handleInstall() {
       throw new Error(t("error.permissionDenied"));
     }
 
+    const reinstall = hasExistingInstallation();
     const result = await installGame(state.rootHandle, state.manifest, {
       baseUrl: import.meta.url,
       log: pushLog,
+      overwriteExistingConfigs: reinstall,
       t,
     });
 
@@ -308,7 +318,7 @@ async function handleSaveConfig() {
 }
 
 function handleResetConfig() {
-  if (!state.loadedConfigs) {
+  if (!state.loadedConfigs || !state.configEditable) {
     return;
   }
 
@@ -330,13 +340,16 @@ async function refreshInstalledConfigSnapshot(options = {}) {
   });
 
   if (options.logOutcome ?? false) {
-    pushLog(snapshot.reason, snapshot.available ? "info" : "warning");
+    pushLog(snapshot.reason, snapshot.editable ? "info" : "warning");
   }
 }
 
 function applyConfigSnapshot(snapshot, options = {}) {
-  state.loadedConfigs = snapshot.available ? cloneConfigSet(snapshot.configs) : null;
-  state.configDraft = snapshot.available ? cloneConfigSet(snapshot.configs) : null;
+  state.existingInstallationDetected = Boolean(snapshot.installed);
+  state.loadedConfigs = snapshot.configs ? cloneConfigSet(snapshot.configs) : null;
+  state.configDraft = snapshot.configs ? cloneConfigSet(snapshot.configs) : null;
+  state.configEditable = Boolean(snapshot.editable);
+  state.configAlertMessage = getConfigAlertMessage(snapshot);
   state.configStatusMessage = snapshot.reason;
   state.configErrors = new Set();
 
@@ -363,11 +376,31 @@ function pushLog(message, tone = "info") {
 }
 
 function render() {
+  renderConfigAlert();
   renderSupportNote();
   renderFolderDetails();
   renderConfigStatus();
   renderLog();
   renderActionState();
+}
+
+function renderConfigAlert() {
+  if (!state.configAlertMessage) {
+    configAlert.textContent = "";
+    configAlert.classList.remove("is-visible");
+    return;
+  }
+
+  configAlert.textContent = state.configAlertMessage;
+  configAlert.classList.add("is-visible");
+}
+
+function getConfigAlertMessage(snapshot) {
+  if (snapshot.installed && !snapshot.editable && snapshot.reason) {
+    return snapshot.reason;
+  }
+
+  return "";
 }
 
 function renderSupportNote() {
@@ -423,6 +456,16 @@ function renderConfigStatus() {
   const validationError = getConfigValidationError();
 
   if (state.configDraft) {
+    if (!state.configEditable) {
+      if (state.configAlertMessage) {
+        configStatus.textContent = t("config.status.locked");
+        return;
+      }
+
+      configStatus.textContent = message;
+      return;
+    }
+
     if (validationError) {
       message += ` ${t("config.status.error", { message: validationError })}`;
     } else if (state.configErrors.size > 0) {
@@ -443,6 +486,9 @@ function renderConfigStatus() {
 }
 
 function renderConfigEditor() {
+  const editorLocked = Boolean(state.configDraft) && !state.configEditable;
+  settingsConfigFields.classList.toggle("is-locked", editorLocked);
+  translatorConfigFields.classList.toggle("is-locked", editorLocked);
   renderSettingsConfig(settingsConfigFields, state.configDraft?.settings);
   renderTranslatorConfig(translatorConfigFields, state.configDraft?.translator);
 }
@@ -576,6 +622,7 @@ function buildProviderToggle(config) {
     input.name = "translator-provider";
     input.value = option.value;
     input.checked = provider === option.value;
+    input.disabled = !state.configEditable;
     input.addEventListener("change", () => {
       setValueAtPath(state.configDraft.translator, ["provider"], option.value);
       clearConfigErrorsByPrefix("translator:");
@@ -614,6 +661,7 @@ function buildFieldInput(configKey, field, currentValue) {
     input.id = inputId;
     input.type = "checkbox";
     input.checked = Boolean(currentValue);
+    input.disabled = !state.configEditable;
     input.addEventListener("change", () => {
       setValueAtPath(state.configDraft[configKey], field.path, input.checked);
       clearFieldError(errorKey, input);
@@ -651,6 +699,7 @@ function buildFieldInput(configKey, field, currentValue) {
 
   const input = createFieldControl(field, inputId, currentValue);
   input.title = getFieldTooltipText(field);
+  input.disabled = !state.configEditable;
   if (hasFieldValidationError(configKey, field)) {
     input.setAttribute("aria-invalid", "true");
   }
@@ -798,7 +847,7 @@ function renderActionState() {
   pickFolderButton.disabled = state.busy || !supportsInstallation();
   installButton.disabled = state.busy || !canInstall();
   saveConfigButton.disabled = state.busy || !canSaveConfig();
-  resetConfigButton.disabled = state.busy || !hasUnsavedConfigChanges();
+  resetConfigButton.disabled = state.busy || !canResetConfig();
   const reinstall = hasExistingInstallation();
 
   pickFolderButton.title = t("tooltip.pickFolderButton");
@@ -831,10 +880,18 @@ function canSaveConfig() {
       && state.inspection?.valid
       && state.loadedConfigs
       && state.configDraft
+      && state.configEditable
       && state.configErrors.size === 0
       && !getConfigValidationError()
       && hasUnsavedConfigChanges()
       && supportsInstallation(),
+  );
+}
+
+function canResetConfig() {
+  return Boolean(
+    state.configEditable
+      && hasUnsavedConfigChanges(),
   );
 }
 
@@ -847,7 +904,7 @@ function hasUnsavedConfigChanges() {
 }
 
 function hasExistingInstallation() {
-  return Boolean(state.loadedConfigs);
+  return Boolean(state.existingInstallationDetected);
 }
 
 function getSelectedProvider(config) {

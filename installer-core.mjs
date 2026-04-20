@@ -57,6 +57,10 @@ export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
   if (!rootHandle) {
     return {
       available: false,
+      editable: false,
+      installed: false,
+      missingFields: [],
+      requiresReinstall: false,
       configs: null,
       supportDirectoryPath: null,
       reason: t("core.selectFolderToLoadConfigs"),
@@ -68,6 +72,10 @@ export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
   if (!inspection.valid) {
     return {
       available: false,
+      editable: false,
+      installed: false,
+      missingFields: [],
+      requiresReinstall: false,
       configs: null,
       supportDirectoryPath: null,
       reason: inspection.reason,
@@ -83,6 +91,10 @@ export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
   if (!supportDirHandle) {
     return {
       available: false,
+      editable: false,
+      installed: false,
+      missingFields: [],
+      requiresReinstall: false,
       configs: null,
       supportDirectoryPath,
       reason: t("core.noInstalledConfig", { path: supportDirectoryPath }),
@@ -96,6 +108,10 @@ export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
     if (!fileHandle) {
       return {
         available: false,
+        editable: false,
+        installed: true,
+        missingFields: [],
+        requiresReinstall: false,
         configs: null,
         supportDirectoryPath,
         reason: t("core.installedConfigIncomplete", { path: `${supportDirectoryPath}/${fileName}` }),
@@ -109,6 +125,10 @@ export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
     } catch (error) {
       return {
         available: false,
+        editable: false,
+        installed: true,
+        missingFields: [],
+        requiresReinstall: false,
         configs: null,
         supportDirectoryPath,
         reason: t("core.couldNotParseConfig", {
@@ -120,8 +140,30 @@ export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
     }
   }
 
+  const defaultConfigs = await loadBundledDefaultConfigs(manifest, options);
+  const missingFields = getMissingConfigFields(defaultConfigs, configs);
+  if (missingFields.length > 0) {
+    return {
+      available: true,
+      editable: false,
+      installed: true,
+      missingFields,
+      requiresReinstall: true,
+      configs,
+      supportDirectoryPath,
+      reason: t("core.installedConfigMissingFields", {
+        fields: missingFields.join(", "),
+      }),
+      warnings: [],
+    };
+  }
+
   return {
     available: true,
+    editable: true,
+    installed: true,
+    missingFields: [],
+    requiresReinstall: false,
     configs,
     supportDirectoryPath,
     reason: t("core.editingInstalledConfigs", { path: supportDirectoryPath }),
@@ -253,6 +295,7 @@ export async function inspectGameDirectory(rootHandle, options = {}) {
 export async function installGame(rootHandle, manifest, options = {}) {
   const baseUrl = options.baseUrl ?? import.meta.url;
   const log = options.log ?? (() => {});
+  const overwriteExistingConfigs = options.overwriteExistingConfigs ?? false;
   const t = getTranslator(options);
   const inspection = await inspectGameDirectory(rootHandle, { t });
   if (!inspection.valid) {
@@ -343,7 +386,13 @@ export async function installGame(rootHandle, manifest, options = {}) {
   let supportFilesCopied = 0;
   for (const file of bundle.supportFiles) {
     const existingSupportFileHandle = await tryGetFileHandle(supportDirHandle, file.name);
-    if (CONFIG_FILE_NAMES.has(file.name) && existingSupportFileHandle) {
+    const replacingExistingConfig = Boolean(
+      existingSupportFileHandle
+        && CONFIG_FILE_NAMES.has(file.name)
+        && overwriteExistingConfigs,
+    );
+
+    if (CONFIG_FILE_NAMES.has(file.name) && existingSupportFileHandle && !replacingExistingConfig) {
       log(t("core.keptExistingSupportFile", {
         fileName: file.name,
         path: `${inspection.pluginsDirPath}/${manifest.supportDirectory}`,
@@ -355,7 +404,7 @@ export async function installGame(rootHandle, manifest, options = {}) {
       ?? (await supportDirHandle.getFileHandle(file.name, { create: true }));
     await writeBytes(supportFileHandle, file.bytes);
     supportFilesCopied += 1;
-    log(t("core.copiedSupportFile", {
+    log(t(replacingExistingConfig ? "core.replacedSupportFile" : "core.copiedSupportFile", {
       fileName: file.name,
       path: `${inspection.pluginsDirPath}/${manifest.supportDirectory}`,
     }), "success");
@@ -448,6 +497,27 @@ async function fetchInstallerBundle(manifest, baseUrl, t) {
   return { loader, supportFiles };
 }
 
+async function loadBundledDefaultConfigs(manifest, options = {}) {
+  const baseUrl = options.baseUrl ?? import.meta.url;
+  const t = getTranslator(options);
+  const bundleDirectory = manifest.bundleDirectory.replace(/\/+$/, "");
+  const defaults = {};
+
+  for (const [configKey, fileName] of Object.entries(CONFIG_FILE_MAP)) {
+    const response = await fetch(new URL(`${bundleDirectory}/${fileName}`, baseUrl));
+    if (!response.ok) {
+      throw new Error(t("core.fetchAssetFailed", {
+        path: `/${bundleDirectory}/${fileName}`,
+        status: response.status,
+      }));
+    }
+
+    defaults[configKey] = JSON.parse(await response.text());
+  }
+
+  return defaults;
+}
+
 async function fetchAssetBytes(url, t) {
   const response = await fetch(url);
   if (!response.ok) {
@@ -504,8 +574,74 @@ function serializeConfigFile(config) {
   return `${JSON.stringify(config, null, 4)}\n`;
 }
 
+export function getMissingConfigFields(defaultConfigs, installedConfigs) {
+  const missingFields = [];
+
+  for (const [configKey, fileName] of Object.entries(CONFIG_FILE_MAP)) {
+    if (!Object.prototype.hasOwnProperty.call(defaultConfigs ?? {}, configKey)) {
+      continue;
+    }
+
+    const configMissingPaths = collectMissingConfigPaths(
+      defaultConfigs[configKey],
+      installedConfigs?.[configKey],
+      [],
+    );
+
+    for (const missingPath of configMissingPaths) {
+      missingFields.push(`${fileName}:${formatConfigPath(missingPath)}`);
+    }
+  }
+
+  return missingFields;
+}
+
 function getTranslator(options = {}) {
   return typeof options.t === "function" ? options.t : DEFAULT_T;
+}
+
+function collectMissingConfigPaths(template, actual, path) {
+  if (!isPlainObject(template)) {
+    return typeof actual === "undefined" ? [path] : [];
+  }
+
+  const actualObject = isPlainObject(actual) ? actual : {};
+  const missingPaths = [];
+
+  for (const [key, value] of Object.entries(template)) {
+    if (!Object.prototype.hasOwnProperty.call(actualObject, key)) {
+      missingPaths.push(...expandLeafPaths(value, [...path, key]));
+      continue;
+    }
+
+    missingPaths.push(...collectMissingConfigPaths(value, actualObject[key], [...path, key]));
+  }
+
+  return missingPaths;
+}
+
+function expandLeafPaths(template, path) {
+  if (!isPlainObject(template)) {
+    return [path];
+  }
+
+  return Object.entries(template).flatMap(([key, value]) => (
+    expandLeafPaths(value, [...path, key])
+  ));
+}
+
+function formatConfigPath(path) {
+  return path.reduce((label, segment) => (
+    typeof segment === "number"
+      ? `${label}[${segment}]`
+      : label
+        ? `${label}.${segment}`
+        : segment
+  ), "");
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 async function tryGetDirectoryHandle(parentHandle, name) {
