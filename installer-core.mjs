@@ -52,6 +52,24 @@ export async function loadManifest(url = new URL("./installer-manifest.json", im
   return response.json();
 }
 
+export async function loadVersionInfo(url = new URL("./version.json", import.meta.url)) {
+  try {
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+    const version = typeof data?.version === "string"
+      ? data.version.trim()
+      : "";
+
+    return version || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
   const t = getTranslator(options);
   if (!rootHandle) {

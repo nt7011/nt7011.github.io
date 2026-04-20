@@ -8,6 +8,7 @@ import {
   getMissingConfigFields,
   injectPluginEntry,
   installGame,
+  loadVersionInfo,
   patchEmptyPackageName,
 } from "../installer-core.mjs";
 
@@ -75,6 +76,35 @@ test("getMissingConfigFields reports missing leaf paths from bundled defaults", 
     "settings.json:gameMessage.textScale",
     "translator.json:settings.deepl.apiKey",
   ]);
+});
+
+test("loadVersionInfo returns the bundled version when version.json is present", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    assert.equal(options?.cache, "no-store");
+    return createFetchResponse({
+      "/version.json": JSON.stringify({ version: "1.12" }),
+    }, url);
+  };
+
+  try {
+    const version = await loadVersionInfo("https://example.test/version.json");
+    assert.equal(version, "1.12");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("loadVersionInfo returns null when version.json is missing", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => createFetchResponse({}, url);
+
+  try {
+    const version = await loadVersionInfo("https://example.test/version.json");
+    assert.equal(version, null);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("installGame overwrites existing config files during reinstall", async () => {
@@ -160,6 +190,9 @@ function createFetchResponse(assets, url) {
   return {
     ok: true,
     status: 200,
+    async json() {
+      return JSON.parse(body);
+    },
     async text() {
       return body;
     },

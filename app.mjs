@@ -4,6 +4,7 @@ import {
   installGame,
   loadInstalledConfigs,
   loadManifest,
+  loadVersionInfo,
   saveInstalledConfigs,
 } from "./installer-core.mjs";
 import {
@@ -140,12 +141,14 @@ const state = {
   configAlertMessage: "",
   configStatusMessage: t("config.status.initial"),
   configErrors: new Set(),
+  translatorVersion: null,
 };
 
 const pickFolderButton = document.querySelector("#pick-folder-button");
 const installButton = document.querySelector("#install-button");
 const saveConfigButton = document.querySelector("#save-config-button");
 const resetConfigButton = document.querySelector("#reset-config-button");
+const translatorVersion = document.querySelector("#translator-version");
 const supportNote = document.querySelector("#support-note");
 const configAlert = document.querySelector("#config-alert");
 const folderName = document.querySelector("#folder-name");
@@ -186,6 +189,8 @@ function applyDocumentTranslations() {
 }
 
 async function initialize() {
+  state.translatorVersion = await loadVersionInfo(new URL("./version.json", import.meta.url));
+
   if (!supportsInstallation()) {
     pushLog(t("error.browserCannotInstall"), "error");
     render();
@@ -376,12 +381,19 @@ function pushLog(message, tone = "info") {
 }
 
 function render() {
+  renderVersionInfo();
   renderConfigAlert();
   renderSupportNote();
   renderFolderDetails();
   renderConfigStatus();
   renderLog();
   renderActionState();
+}
+
+function renderVersionInfo() {
+  translatorVersion.textContent = t("page.version", {
+    version: state.translatorVersion ?? t("folder.unknown"),
+  });
 }
 
 function renderConfigAlert() {
