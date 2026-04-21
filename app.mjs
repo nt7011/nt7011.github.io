@@ -2,6 +2,7 @@ import {
   ensureReadWritePermission,
   inspectGameDirectory,
   installGame,
+  isVersionOutdated,
   loadInstalledConfigs,
   loadManifest,
   loadVersionInfo,
@@ -144,6 +145,11 @@ const CONFIG_STATUS_TONE_CLASSES = [
   "is-error",
   "is-success",
 ];
+const VERSION_STATUS_TONE_CLASSES = [
+  "is-neutral",
+  "is-warning",
+  "is-success",
+];
 const locale = detectPreferredLocale(window.navigator);
 const t = createTranslator(locale);
 
@@ -162,6 +168,8 @@ const state = {
   configStatusMessage: t("config.status.initial"),
   configErrors: new Set(),
   translatorVersion: null,
+  installedTranslatorVersion: null,
+  installedVersionChecked: false,
 };
 
 const pickFolderButton = document.querySelector("#pick-folder-button");
@@ -221,7 +229,7 @@ async function initialize() {
     state.manifest = await loadManifest(new URL("./installer-manifest.json", import.meta.url), { t });
     pushLog(
       t("log.bundleLoaded", {
-        count: state.manifest.supportFiles.length + 1,
+        count: state.manifest.supportFiles.length + 2,
       }),
       "info",
     );
@@ -371,6 +379,8 @@ async function refreshInstalledConfigSnapshot(options = {}) {
 
 function applyConfigSnapshot(snapshot, options = {}) {
   state.existingInstallationDetected = Boolean(snapshot.installed);
+  state.installedVersionChecked = Boolean(snapshot.installedVersionChecked);
+  state.installedTranslatorVersion = snapshot.installedVersion ?? null;
   state.loadedConfigs = snapshot.configs ? cloneConfigSet(snapshot.configs) : null;
   state.configDraft = snapshot.configs ? cloneConfigSet(snapshot.configs) : null;
   state.configEditable = Boolean(snapshot.editable);
@@ -411,9 +421,39 @@ function render() {
 }
 
 function renderVersionInfo() {
-  translatorVersion.textContent = t("page.version", {
-    version: state.translatorVersion ?? t("folder.unknown"),
+  const installableVersion = getDisplayVersion(state.translatorVersion);
+  let tone = "neutral";
+  let message = t("page.version", {
+    version: installableVersion,
   });
+
+  if (state.installedVersionChecked) {
+    const installedVersion = getDisplayVersion(state.installedTranslatorVersion);
+    if (isVersionOutdated(state.installedTranslatorVersion, state.translatorVersion)) {
+      tone = "warning";
+      message = t("page.version.updateAvailable", {
+        installedVersion,
+        installableVersion,
+      });
+    } else {
+      tone = "success";
+      message = t("page.version.installed", {
+        version: installedVersion,
+      });
+    }
+  }
+
+  setVersionStatusTone(tone);
+  translatorVersion.textContent = message;
+}
+
+function getDisplayVersion(version) {
+  return version ?? t("folder.unknown");
+}
+
+function setVersionStatusTone(tone) {
+  translatorVersion.classList.remove(...VERSION_STATUS_TONE_CLASSES);
+  translatorVersion.classList.add(`is-${tone}`);
 }
 
 function renderConfigAlert() {

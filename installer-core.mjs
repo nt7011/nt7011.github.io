@@ -1,6 +1,7 @@
 import { createTranslator } from "./i18n.mjs";
 
 export const LOADER_PLUGIN_NAME = "live-translator-loader";
+export const VERSION_FILE_NAME = "version.json";
 export const CONFIG_FILE_MAP = Object.freeze({
   settings: "settings.json",
   translator: "translator.json",
@@ -77,6 +78,8 @@ export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
       available: false,
       editable: false,
       installed: false,
+      installedVersionChecked: false,
+      installedVersion: null,
       missingFields: [],
       requiresReinstall: false,
       configs: null,
@@ -92,6 +95,8 @@ export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
       available: false,
       editable: false,
       installed: false,
+      installedVersionChecked: false,
+      installedVersion: null,
       missingFields: [],
       requiresReinstall: false,
       configs: null,
@@ -111,6 +116,8 @@ export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
       available: false,
       editable: false,
       installed: false,
+      installedVersionChecked: false,
+      installedVersion: null,
       missingFields: [],
       requiresReinstall: false,
       configs: null,
@@ -120,6 +127,17 @@ export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
     };
   }
 
+  const versionInfo = await loadInstalledVersionInfo(
+    supportDirHandle,
+    `${supportDirectoryPath}/${VERSION_FILE_NAME}`,
+    t,
+  );
+  const baseSnapshot = {
+    installedVersionChecked: true,
+    installedVersion: versionInfo.version,
+  };
+  const warnings = [...versionInfo.warnings];
+
   const configs = {};
   for (const [key, fileName] of Object.entries(CONFIG_FILE_MAP)) {
     const fileHandle = await tryGetFileHandle(supportDirHandle, fileName);
@@ -128,12 +146,13 @@ export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
         available: false,
         editable: false,
         installed: true,
+        ...baseSnapshot,
         missingFields: [],
         requiresReinstall: false,
         configs: null,
         supportDirectoryPath,
         reason: t("core.installedConfigIncomplete", { path: `${supportDirectoryPath}/${fileName}` }),
-        warnings: [],
+        warnings,
       };
     }
 
@@ -145,6 +164,7 @@ export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
         available: false,
         editable: false,
         installed: true,
+        ...baseSnapshot,
         missingFields: [],
         requiresReinstall: false,
         configs: null,
@@ -153,7 +173,7 @@ export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
           path: `${supportDirectoryPath}/${fileName}`,
           message: error.message,
         }),
-        warnings: [],
+        warnings,
       };
     }
   }
@@ -165,6 +185,7 @@ export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
       available: true,
       editable: false,
       installed: true,
+      ...baseSnapshot,
       missingFields,
       requiresReinstall: true,
       configs,
@@ -172,7 +193,7 @@ export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
       reason: t("core.installedConfigMissingFields", {
         fields: missingFields.join(", "),
       }),
-      warnings: [],
+      warnings,
     };
   }
 
@@ -180,13 +201,23 @@ export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
     available: true,
     editable: true,
     installed: true,
+    ...baseSnapshot,
     missingFields: [],
     requiresReinstall: false,
     configs,
     supportDirectoryPath,
     reason: t("core.editingInstalledConfigs", { path: supportDirectoryPath }),
-    warnings: [],
+    warnings,
   };
+}
+
+export function isVersionOutdated(installedVersion, installableVersion) {
+  const installable = normalizeVersion(installableVersion);
+  if (!installable) {
+    return false;
+  }
+
+  return normalizeVersion(installedVersion) !== installable;
 }
 
 export async function ensureReadWritePermission(handle) {
@@ -428,6 +459,15 @@ export async function installGame(rootHandle, manifest, options = {}) {
     }), "success");
   }
 
+  const versionFileHandle = await supportDirHandle.getFileHandle(bundle.version.name, {
+    create: true,
+  });
+  await writeBytes(versionFileHandle, bundle.version.bytes);
+  log(t("core.copiedVersionFile", {
+    fileName: bundle.version.name,
+    path: `${inspection.pluginsDirPath}/${manifest.supportDirectory}`,
+  }), "success");
+
   const pluginsData = await readTextFile(inspection.pluginsFileHandle);
   let pluginEntryAdded = false;
 
@@ -459,7 +499,7 @@ export async function installGame(rootHandle, manifest, options = {}) {
   return {
     packageUpdates,
     pluginEntryAdded,
-    filesCopied: 1 + supportFilesCopied,
+    filesCopied: 2 + supportFilesCopied,
     supportDirectory: `${inspection.pluginsDirPath}/${manifest.supportDirectory}`,
   };
 }
@@ -504,6 +544,10 @@ async function fetchInstallerBundle(manifest, baseUrl, t) {
     name: manifest.loaderFile,
     bytes: await fetchAssetBytes(new URL(`${bundleDirectory}/${manifest.loaderFile}`, baseUrl), t),
   };
+  const version = {
+    name: VERSION_FILE_NAME,
+    bytes: await fetchAssetBytes(new URL(`./${VERSION_FILE_NAME}`, baseUrl), t),
+  };
 
   const supportFiles = await Promise.all(
     manifest.supportFiles.map(async (name) => ({
@@ -512,7 +556,7 @@ async function fetchInstallerBundle(manifest, baseUrl, t) {
     })),
   );
 
-  return { loader, supportFiles };
+  return { loader, supportFiles, version };
 }
 
 async function loadBundledDefaultConfigs(manifest, options = {}) {
@@ -534,6 +578,35 @@ async function loadBundledDefaultConfigs(manifest, options = {}) {
   }
 
   return defaults;
+}
+
+async function loadInstalledVersionInfo(supportDirHandle, versionPath, t) {
+  const versionHandle = await tryGetFileHandle(supportDirHandle, VERSION_FILE_NAME);
+  if (!versionHandle) {
+    return {
+      version: null,
+      warnings: [],
+    };
+  }
+
+  try {
+    const data = await readTextFile(versionHandle);
+    const parsed = JSON.parse(data.text);
+    const version = normalizeVersion(parsed?.version);
+
+    return {
+      version,
+      warnings: [],
+    };
+  } catch (error) {
+    return {
+      version: null,
+      warnings: [t("core.couldNotParseVersion", {
+        path: versionPath,
+        message: error.message,
+      })],
+    };
+  }
 }
 
 async function fetchAssetBytes(url, t) {
@@ -590,6 +663,10 @@ function encodeTextBytes(text) {
 
 function serializeConfigFile(config) {
   return `${JSON.stringify(config, null, 4)}\n`;
+}
+
+function normalizeVersion(version) {
+  return typeof version === "string" ? version.trim() || null : null;
 }
 
 export function getMissingConfigFields(defaultConfigs, installedConfigs) {

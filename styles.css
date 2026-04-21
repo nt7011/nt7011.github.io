@@ -92,11 +92,40 @@ h3 {
 }
 
 .version-note {
-  margin-top: 8px;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: #f5f7f6;
   color: var(--muted);
   font-size: 0.95rem;
   font-weight: 600;
   overflow-wrap: anywhere;
+}
+
+.version-note.is-neutral {
+  border-color: var(--border);
+  border-left-color: var(--accent);
+  background: #f5f7f6;
+  color: var(--muted);
+}
+
+.version-note.is-success {
+  border-color: #86efac;
+  border-left-color: var(--success);
+  background: #f0fdf4;
+  color: var(--success);
+}
+
+.version-note.is-warning {
+  border-color: #fdba74;
+  border-left-color: var(--warn);
+  background: #fff7ed;
+  color: var(--warn);
 }
 
 .actions {

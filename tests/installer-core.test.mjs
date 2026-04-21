@@ -8,6 +8,8 @@ import {
   getMissingConfigFields,
   injectPluginEntry,
   installGame,
+  isVersionOutdated,
+  loadInstalledConfigs,
   loadVersionInfo,
   patchEmptyPackageName,
 } from "../installer-core.mjs";
@@ -109,6 +111,16 @@ test("loadVersionInfo returns null when version.json is missing", async () => {
   }
 });
 
+test("isVersionOutdated compares installed version against newest version", () => {
+  assert.equal(isVersionOutdated("2.3", "2.4"), true);
+  assert.equal(isVersionOutdated("2.10", "2.9"), true);
+  assert.equal(isVersionOutdated("2.3.0", "2.3"), true);
+  assert.equal(isVersionOutdated(null, "2.4"), true);
+  assert.equal(isVersionOutdated("awergerf", "local_debug"), true);
+  assert.equal(isVersionOutdated("local_debug", "local_debug"), false);
+  assert.equal(isVersionOutdated("2.3", null), false);
+});
+
 test("installGame overwrites existing config files during reinstall", async () => {
   const rootHandle = createFakeDirectory("Game");
   const jsHandle = rootHandle.addDirectory("js");
@@ -132,6 +144,7 @@ test("installGame overwrites existing config files during reinstall", async () =
   const defaultTranslator = '{\n    "provider": "local"\n}\n';
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => createFetchResponse({
+    "/version.json": JSON.stringify({ version: "2.4" }),
     "/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
     "/live-translator-installer/settings.json": defaultSettings,
     "/live-translator-installer/translator.json": defaultTranslator,
@@ -154,6 +167,48 @@ test("installGame overwrites existing config files during reinstall", async () =
     supportHandle.readFileText("translator.json"),
     defaultTranslator,
   );
+  assert.equal(
+    supportHandle.readFileText("version.json"),
+    JSON.stringify({ version: "2.4" }),
+  );
+});
+
+test("loadInstalledConfigs reports the installed version file", async () => {
+  const rootHandle = createFakeDirectory("Game");
+  const jsHandle = rootHandle.addDirectory("js");
+  const pluginsHandle = jsHandle.addDirectory("plugins");
+  const supportHandle = pluginsHandle.addDirectory("live-translator");
+
+  jsHandle.setFileText("plugins.js", "[]\n");
+  supportHandle.setFileText("settings.json", "{}\n");
+  supportHandle.setFileText("translator.json", "{}\n");
+  supportHandle.setFileText("version.json", JSON.stringify({ version: "2.3" }));
+
+  const manifest = {
+    bundleDirectory: "live-translator-installer",
+    loaderFile: "live-translator-loader.js",
+    supportDirectory: "live-translator",
+    supportFiles: ["settings.json", "translator.json"],
+    pluginEntry: '{"name":"live-translator-loader","status":true,"description":"Entry point","parameters":{}},',
+  };
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => createFetchResponse({
+    "/live-translator-installer/settings.json": "{}\n",
+    "/live-translator-installer/translator.json": "{}\n",
+  }, url);
+
+  try {
+    const snapshot = await loadInstalledConfigs(rootHandle, manifest, {
+      baseUrl: "https://example.test/app.mjs",
+    });
+
+    assert.equal(snapshot.installedVersionChecked, true);
+    assert.equal(snapshot.installedVersion, "2.3");
+    assert.equal(snapshot.editable, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("installer-manifest.json tracks the copied support bundle", async () => {
