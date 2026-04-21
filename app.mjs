@@ -124,6 +124,12 @@ const DEEPL_TRANSLATOR_FIELDS = [
   },
 ];
 const DEEPL_APIKEY_PLACEHOLDER_SUBSTRING = "__NONE__";
+const CONFIG_STATUS_TONE_CLASSES = [
+  "is-neutral",
+  "is-warning",
+  "is-error",
+  "is-success",
+];
 const locale = detectPreferredLocale(window.navigator);
 const t = createTranslator(locale);
 
@@ -465,36 +471,50 @@ function renderFolderDetails() {
 
 function renderConfigStatus() {
   let message = state.configStatusMessage;
+  let summary = "";
+  let tone = "neutral";
   const validationError = getConfigValidationError();
 
   if (state.configDraft) {
     if (!state.configEditable) {
       if (state.configAlertMessage) {
+        setConfigStatusTone("error");
         configStatus.textContent = t("config.status.locked");
         return;
       }
 
+      setConfigStatusTone("neutral");
       configStatus.textContent = message;
       return;
     }
 
     if (validationError) {
-      message += ` ${t("config.status.error", { message: validationError })}`;
+      tone = "error";
+      summary = t("config.status.error", { message: validationError });
     } else if (state.configErrors.size > 0) {
-      message += ` ${t(
+      tone = "error";
+      summary = t(
         state.configErrors.size === 1
           ? "config.status.invalidNumber.one"
           : "config.status.invalidNumber.other",
         { count: state.configErrors.size },
-      )}`;
+      );
     } else if (hasUnsavedConfigChanges()) {
-      message += ` ${t("config.status.unsaved")}`;
+      tone = "warning";
+      summary = t("config.status.unsaved");
     } else {
-      message += ` ${t("config.status.clean")}`;
+      tone = "success";
+      summary = t("config.status.clean");
     }
   }
 
-  configStatus.textContent = message;
+  setConfigStatusTone(tone);
+  configStatus.textContent = summary ? `${message}\n${summary}` : message;
+}
+
+function setConfigStatusTone(tone) {
+  configStatus.classList.remove(...CONFIG_STATUS_TONE_CLASSES);
+  configStatus.classList.add(`is-${tone}`);
 }
 
 function renderConfigEditor() {
