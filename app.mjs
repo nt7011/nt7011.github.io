@@ -639,6 +639,9 @@ function renderTranslatorConfig(container, config) {
 
   const settingsSection = document.createElement("section");
   settingsSection.className = "config-group";
+  if (provider === "local") {
+    settingsSection.classList.add("local-settings-group");
+  }
 
   const settingsHeading = document.createElement("h4");
   settingsHeading.className = "config-group-title";
@@ -656,6 +659,9 @@ function renderTranslatorConfig(container, config) {
 
   const fieldGrid = document.createElement("div");
   fieldGrid.className = "config-field-grid";
+  if (provider === "local") {
+    fieldGrid.classList.add("local-settings-grid");
+  }
 
   const activeFields = provider === "deepl" ? DEEPL_TRANSLATOR_FIELDS : LOCAL_TRANSLATOR_FIELDS;
   for (const field of activeFields) {
@@ -714,6 +720,7 @@ function buildProviderToggle(config) {
 function buildFieldInput(configKey, field, currentValue) {
   const wrapper = document.createElement("div");
   wrapper.className = "config-field";
+  wrapper.classList.add(getFieldClassName(field));
   if (field.inputKind === "checkbox") {
     wrapper.classList.add("checkbox-field");
   }
@@ -895,6 +902,15 @@ function getFieldTooltipText(field) {
   }
 
   return field.label;
+}
+
+function getFieldClassName(field) {
+  const normalizedId = field.id
+    .replace(/[^a-z0-9]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+
+  return `config-field--${normalizedId || "value"}`;
 }
 
 function renderLog() {

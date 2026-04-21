@@ -31,6 +31,10 @@ body {
   padding: 24px 0 40px;
 }
 
+.layout-sidebar {
+  min-width: 0;
+}
+
 .panel {
   background: var(--panel-bg);
   border: 1px solid var(--border);
@@ -39,6 +43,10 @@ body {
 }
 
 .panel + .panel {
+  margin-top: 16px;
+}
+
+.layout-sidebar + .panel {
   margin-top: 16px;
 }
 
@@ -96,6 +104,15 @@ h3 {
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 20px;
+}
+
+.layout-sidebar .actions {
+  flex-direction: column;
+}
+
+.layout-sidebar button,
+.layout-sidebar .download-link a {
+  width: 100%;
 }
 
 button {
@@ -273,6 +290,30 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 12px;
+}
+
+@media (min-width: 760px) {
+  .local-settings-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .local-settings-grid > .config-field {
+    min-width: 0;
+  }
+
+  .local-settings-grid .config-field--settings-local-address,
+  .local-settings-grid .config-field--settings-local-model {
+    grid-column: span 2;
+  }
+
+  .local-settings-grid .config-field--settings-local-system-prompt {
+    grid-column: 1 / -1;
+  }
+
+  .local-settings-grid .config-field--settings-local-system-prompt textarea {
+    min-height: 144px;
+  }
 }
 
 .config-toggle-grid {
@@ -482,5 +523,32 @@ button:disabled {
 
   .download-link a {
     width: 100%;
+  }
+}
+
+@media (min-width: 1180px) {
+  .app-shell {
+    width: min(1400px, calc(100vw - 48px));
+    display: grid;
+    grid-template-columns: 336px minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+
+  .app-shell > .layout-sidebar + .panel,
+  .app-shell > .panel + .panel {
+    margin-top: 0;
+  }
+
+  .configuration-panel {
+    min-width: 0;
+  }
+
+  .activity-panel {
+    grid-column: 1 / -1;
+  }
+
+  .layout-sidebar h1 {
+    font-size: 1.65rem;
   }
 }
