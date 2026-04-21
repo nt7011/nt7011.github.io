@@ -43,10 +43,12 @@ The actual translator project lives here: [RPG-Maker-Live-Translator](https://gi
 ## Local development
 
 ```bash
-python3 -m http.server 4173 --bind 127.0.0.1
+python3 dev-server.py --bind 127.0.0.1 4173
 ```
 
-Then open the served URL in a supported browser.
+Then open `http://127.0.0.1:4173/` in a supported browser.
+
+The dev server sends `Cache-Control: no-store` headers so browser refreshes load the current local files. If the old `python3 -m http.server` response is already cached, do one hard refresh or clear site data once after switching servers.
 
 ## Tests
 
