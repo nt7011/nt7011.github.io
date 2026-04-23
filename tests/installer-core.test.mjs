@@ -173,6 +173,82 @@ test("installGame overwrites existing config files during reinstall", async () =
   );
 });
 
+test("installGame copies nested support files", async () => {
+  const rootHandle = createFakeDirectory("Game");
+  const jsHandle = rootHandle.addDirectory("js");
+  const pluginsHandle = jsHandle.addDirectory("plugins");
+
+  rootHandle.setFileText("package.json", '{"name":"Game"}\n');
+  jsHandle.setFileText("plugins.js", "[]\n");
+
+  const manifest = {
+    bundleDirectory: "live-translator-installer",
+    loaderFile: "live-translator-loader.js",
+    supportDirectory: "live-translator",
+    supportFiles: [
+      "settings.json",
+      "translator.json",
+      "precacher/precacher.js",
+      "precacher/pretranslator.js",
+      "precacher-ui/app.js",
+      "precacher-ui/index.html",
+      "precacher-ui/style.css",
+      "precacher-ui-launcher.js",
+    ],
+    pluginEntry: '{"name":"live-translator-loader","status":true,"description":"Entry point","parameters":{}},',
+  };
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => createFetchResponse({
+    "/version.json": JSON.stringify({ version: "2.4" }),
+    "/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
+    "/live-translator-installer/settings.json": "{}\n",
+    "/live-translator-installer/translator.json": "{}\n",
+    "/live-translator-installer/precacher/precacher.js": 'console.log("precacher");\n',
+    "/live-translator-installer/precacher/pretranslator.js": 'console.log("pretranslator");\n',
+    "/live-translator-installer/precacher-ui/app.js": 'console.log("ui app");\n',
+    "/live-translator-installer/precacher-ui/index.html": "<!doctype html>\n",
+    "/live-translator-installer/precacher-ui/style.css": "body {}\n",
+    "/live-translator-installer/precacher-ui-launcher.js": 'console.log("launcher");\n',
+  }, url);
+
+  let result;
+  try {
+    result = await installGame(rootHandle, manifest, {
+      baseUrl: "https://example.test/app.mjs",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  const supportHandle = pluginsHandle.getDirectory("live-translator");
+  assert.equal(
+    supportHandle.readFileTextAtPath("precacher/precacher.js"),
+    'console.log("precacher");\n',
+  );
+  assert.equal(
+    supportHandle.readFileTextAtPath("precacher/pretranslator.js"),
+    'console.log("pretranslator");\n',
+  );
+  assert.equal(
+    supportHandle.readFileTextAtPath("precacher-ui/app.js"),
+    'console.log("ui app");\n',
+  );
+  assert.equal(
+    supportHandle.readFileTextAtPath("precacher-ui/index.html"),
+    "<!doctype html>\n",
+  );
+  assert.equal(
+    supportHandle.readFileTextAtPath("precacher-ui/style.css"),
+    "body {}\n",
+  );
+  assert.equal(
+    supportHandle.readFileText("precacher-ui-launcher.js"),
+    'console.log("launcher");\n',
+  );
+  assert.equal(result.filesCopied, manifest.supportFiles.length + 2);
+});
+
 test("loadInstalledConfigs reports the installed version file", async () => {
   const rootHandle = createFakeDirectory("Game");
   const jsHandle = rootHandle.addDirectory("js");
@@ -216,16 +292,33 @@ test("installer-manifest.json tracks the copied support bundle", async () => {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
 
   const bundleDirectory = path.join(repoRoot, manifest.bundleDirectory);
-  const actualFiles = await readdir(bundleDirectory, { withFileTypes: true });
-  const copiedFiles = actualFiles
-    .filter((entry) => entry.isFile())
-    .map((entry) => entry.name)
-    .filter((name) => !["install", "installer.ps1", "installer.sh", manifest.loaderFile].includes(name))
+  const excludedFiles = new Set(["install", "installer.ps1", "installer.sh", manifest.loaderFile]);
+  const copiedFiles = (await listRelativeFiles(bundleDirectory))
+    .filter((name) => !excludedFiles.has(name))
     .sort();
 
   const manifestFiles = [...manifest.supportFiles].sort();
   assert.deepEqual(manifestFiles, copiedFiles);
 });
+
+async function listRelativeFiles(directory, prefix = "") {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = await Promise.all(entries.map(async (entry) => {
+    const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
+
+    if (entry.isDirectory()) {
+      return listRelativeFiles(path.join(directory, entry.name), relativePath);
+    }
+
+    if (entry.isFile()) {
+      return [relativePath];
+    }
+
+    return [];
+  }));
+
+  return files.flat();
+}
 
 function createFetchResponse(assets, url) {
   const pathname = new URL(String(url)).pathname;
@@ -276,13 +369,37 @@ class FakeDirectoryHandle {
     return directory;
   }
 
+  getDirectory(name) {
+    const directory = this.directories.get(name);
+    if (!directory) {
+      throw new Error(`Missing fake directory: ${name}`);
+    }
+
+    return directory;
+  }
+
   setFileText(name, text) {
     this.files.set(name, new TextEncoder().encode(text));
   }
 
   readFileText(name) {
     const bytes = this.files.get(name);
+    if (!bytes) {
+      throw new Error(`Missing fake file: ${name}`);
+    }
+
     return new TextDecoder().decode(bytes);
+  }
+
+  readFileTextAtPath(filePath) {
+    const segments = filePath.split(/[\\/]+/);
+    let directory = this;
+
+    for (const directoryName of segments.slice(0, -1)) {
+      directory = directory.getDirectory(directoryName);
+    }
+
+    return directory.readFileText(segments[segments.length - 1]);
   }
 
   async getDirectoryHandle(name, options = {}) {

@@ -434,14 +434,15 @@ export async function installGame(rootHandle, manifest, options = {}) {
 
   let supportFilesCopied = 0;
   for (const file of bundle.supportFiles) {
-    const existingSupportFileHandle = await tryGetFileHandle(supportDirHandle, file.name);
+    const existingSupportFileHandle = await tryGetFileHandleAtPath(supportDirHandle, file.name);
+    const rootConfigFile = isRootConfigFile(file.name);
     const replacingExistingConfig = Boolean(
       existingSupportFileHandle
-        && CONFIG_FILE_NAMES.has(file.name)
+        && rootConfigFile
         && overwriteExistingConfigs,
     );
 
-    if (CONFIG_FILE_NAMES.has(file.name) && existingSupportFileHandle && !replacingExistingConfig) {
+    if (rootConfigFile && existingSupportFileHandle && !replacingExistingConfig) {
       log(t("core.keptExistingSupportFile", {
         fileName: file.name,
         path: `${inspection.pluginsDirPath}/${manifest.supportDirectory}`,
@@ -450,7 +451,7 @@ export async function installGame(rootHandle, manifest, options = {}) {
     }
 
     const supportFileHandle = existingSupportFileHandle
-      ?? (await supportDirHandle.getFileHandle(file.name, { create: true }));
+      ?? (await getFileHandleAtPath(supportDirHandle, file.name, { create: true }));
     await writeBytes(supportFileHandle, file.bytes);
     supportFilesCopied += 1;
     log(t(replacingExistingConfig ? "core.replacedSupportFile" : "core.copiedSupportFile", {
@@ -550,10 +551,13 @@ async function fetchInstallerBundle(manifest, baseUrl, t) {
   };
 
   const supportFiles = await Promise.all(
-    manifest.supportFiles.map(async (name) => ({
-      name,
-      bytes: await fetchAssetBytes(new URL(`${bundleDirectory}/${name}`, baseUrl), t),
-    })),
+    manifest.supportFiles.map(async (name) => {
+      const normalizedName = normalizeSupportFilePath(name);
+      return {
+        name: normalizedName,
+        bytes: await fetchAssetBytes(new URL(`${bundleDirectory}/${normalizedName}`, baseUrl), t),
+      };
+    }),
   );
 
   return { loader, supportFiles, version };
@@ -759,4 +763,54 @@ async function tryGetFileHandle(parentHandle, name) {
     }
     throw error;
   }
+}
+
+async function tryGetFileHandleAtPath(parentHandle, filePath) {
+  const segments = getSupportPathSegments(filePath);
+  let directoryHandle = parentHandle;
+
+  for (const directoryName of segments.slice(0, -1)) {
+    directoryHandle = await tryGetDirectoryHandle(directoryHandle, directoryName);
+    if (!directoryHandle) {
+      return null;
+    }
+  }
+
+  return tryGetFileHandle(directoryHandle, segments[segments.length - 1]);
+}
+
+async function getFileHandleAtPath(parentHandle, filePath, options = {}) {
+  const segments = getSupportPathSegments(filePath);
+  let directoryHandle = parentHandle;
+
+  for (const directoryName of segments.slice(0, -1)) {
+    directoryHandle = await directoryHandle.getDirectoryHandle(
+      directoryName,
+      options.create ? { create: true } : {},
+    );
+  }
+
+  return directoryHandle.getFileHandle(segments[segments.length - 1], options);
+}
+
+function isRootConfigFile(filePath) {
+  return !/[\\/]/.test(filePath) && CONFIG_FILE_NAMES.has(filePath);
+}
+
+function getSupportPathSegments(filePath) {
+  return normalizeSupportFilePath(filePath).split("/");
+}
+
+function normalizeSupportFilePath(filePath) {
+  const normalizedPath = String(filePath ?? "").trim().replace(/\\/g, "/");
+  const segments = normalizedPath.split("/");
+
+  if (
+    !normalizedPath
+      || segments.some((segment) => !segment || segment === "." || segment === "..")
+  ) {
+    throw new Error(`Invalid support file path in installer manifest: ${filePath}`);
+  }
+
+  return segments.join("/");
 }
