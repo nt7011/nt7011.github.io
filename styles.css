@@ -35,6 +35,10 @@ body {
   min-width: 0;
 }
 
+.layout-main {
+  min-width: 0;
+}
+
 .panel {
   background: var(--panel-bg);
   border: 1px solid var(--border);
@@ -47,6 +51,18 @@ body {
 }
 
 .layout-sidebar + .panel {
+  margin-top: 16px;
+}
+
+.layout-sidebar + .layout-main {
+  margin-top: 16px;
+}
+
+.layout-main + .panel {
+  margin-top: 16px;
+}
+
+.layout-main .panel + .panel {
   margin-top: 16px;
 }
 
@@ -326,6 +342,55 @@ button:disabled {
   margin-top: 16px;
 }
 
+.precacher-panel {
+  border: 1px solid #99d1c8;
+  border-left: 4px solid var(--accent);
+  background: #f0fdfa;
+  color: var(--text);
+}
+
+.precacher-panel-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 8px;
+}
+
+.beta-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.precacher-panel p {
+  color: var(--muted);
+}
+
+.precacher-panel code {
+  padding: 1px 5px;
+  border: 1px solid #b8c6c1;
+  border-radius: 4px;
+  background: #fff;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.precacher-panel-warning {
+  margin-top: 8px;
+  color: #7c2d12;
+  font-weight: 800;
+}
+
 .config-fields.is-locked {
   opacity: 0.78;
 }
@@ -596,12 +661,28 @@ button:disabled {
     display: grid;
     grid-template-columns: 336px minmax(0, 1fr);
     gap: 16px;
-    align-items: start;
+    align-items: stretch;
   }
 
-  .app-shell > .layout-sidebar + .panel,
+  .app-shell > .layout-sidebar + .layout-main,
+  .app-shell > .layout-main + .panel,
   .app-shell > .panel + .panel {
     margin-top: 0;
+  }
+
+  .layout-sidebar {
+    display: flex;
+    flex-direction: column;
+    align-self: stretch;
+  }
+
+  .detected-panel {
+    flex: 1 1 auto;
+  }
+
+  .layout-main {
+    grid-column: 2;
+    min-width: 0;
   }
 
   .configuration-panel {
