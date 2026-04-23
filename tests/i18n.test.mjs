@@ -55,6 +55,22 @@ test("createTranslator includes cache-only provider copy", () => {
   );
 });
 
+test("createTranslator includes precacher reminder localization", () => {
+  const en = createTranslator("en-US");
+  const ko = createTranslator("ko-KR");
+
+  assert.equal(en("precacher.beta"), "Beta");
+  assert.equal(ko("precacher.beta"), "Beta");
+  assert.equal(
+    ko("precacher.description"),
+    "Precacher는 파일에서 정적인 (게임 로직에 따라 바뀌지 않는) 텍스트를 미리 번역해 놓기 때문에 번역이 바로 표시됩니다.<br>게임을 실행한 뒤 <code>Control-Shift-P</code>를 눌러 대시보드를 여세요.",
+  );
+  assert.equal(
+    ko("precacher.warning"),
+    "알림: 동적 텍스트는 지원되지 않으며 앞으로도 지원되지 않습니다!",
+  );
+});
+
 test("createTranslator includes reinstall save reminder localization", () => {
   const en = createTranslator("en-US");
   const ko = createTranslator("ko-KR");
