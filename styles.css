@@ -156,7 +156,8 @@ h3 {
 }
 
 .layout-sidebar button,
-.layout-sidebar .download-link a {
+.layout-sidebar .download-link a,
+.layout-sidebar .cheats-link a {
   width: 100%;
 }
 
@@ -591,6 +592,15 @@ button:disabled {
   color: var(--success);
 }
 
+.cheats-panel p {
+  margin-top: 8px;
+  color: var(--muted);
+}
+
+.cheats-link {
+  margin-top: 16px;
+}
+
 .download-copy {
   margin-bottom: 12px;
   color: var(--muted);
@@ -600,7 +610,8 @@ button:disabled {
   margin-bottom: 12px;
 }
 
-.download-link a {
+.download-link a,
+.cheats-link a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -614,9 +625,21 @@ button:disabled {
   text-decoration: none;
 }
 
+.cheats-link a {
+  border-color: #5b21b6;
+  background: #7c3aed;
+}
+
 .download-link a:hover,
-.download-link a:focus-visible {
+.download-link a:focus-visible,
+.cheats-link a:hover,
+.cheats-link a:focus-visible {
   background: var(--accent-strong);
+}
+
+.cheats-link a:hover,
+.cheats-link a:focus-visible {
+  background: #5b21b6;
 }
 
 @media (max-width: 640px) {
@@ -650,7 +673,8 @@ button:disabled {
     width: 100%;
   }
 
-  .download-link a {
+  .download-link a,
+  .cheats-link a {
     width: 100%;
   }
 }
