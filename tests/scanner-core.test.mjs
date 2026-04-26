@@ -12,6 +12,7 @@ test("normalizeHashCatalog keeps catalog version metadata", () => {
     source: "https://dl.nwjs.io/",
     generatedAt: "2026-04-26T00:00:00.000Z",
     startVersion: "v0.32.0-beta1",
+    firstIncludedVersion: "v0.32.0",
     latestVersion: "v0.111.0",
     releaseCount: 195,
     fileReferenceCount: 7714,
@@ -32,6 +33,7 @@ test("normalizeHashCatalog keeps catalog version metadata", () => {
   });
 
   assert.equal(catalog.startVersion, "v0.32.0-beta1");
+  assert.equal(catalog.firstIncludedVersion, "v0.32.0");
   assert.equal(catalog.latestVersion, "v0.111.0");
   assert.equal(catalog.releaseCount, 195);
   assert.equal(catalog.fileReferenceCount, 7714);

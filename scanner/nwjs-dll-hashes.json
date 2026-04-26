@@ -1,8 +1,9 @@
 {
   "schemaVersion": 1,
   "source": "https://dl.nwjs.io/",
-  "generatedAt": "2026-04-26T04:55:55.696Z",
+  "generatedAt": "2026-04-26T05:20:50.002Z",
   "startVersion": "v0.32.0-beta1",
+  "firstIncludedVersion": "v0.32.0",
   "latestVersion": "v0.111.0",
   "includedReleases": [
     "v0.32.0",

@@ -45,6 +45,9 @@ export function normalizeHashCatalog(catalog) {
     source: String(catalog?.source ?? ""),
     generatedAt: String(catalog?.generatedAt ?? ""),
     startVersion: typeof catalog?.startVersion === "string" ? catalog.startVersion : "",
+    firstIncludedVersion: typeof catalog?.firstIncludedVersion === "string"
+      ? catalog.firstIncludedVersion
+      : "",
     latestVersion: typeof catalog?.latestVersion === "string" ? catalog.latestVersion : "",
     releaseCount: Number.isInteger(catalog?.releaseCount) ? catalog.releaseCount : 0,
     fileReferenceCount: Number.isInteger(catalog?.fileReferenceCount)

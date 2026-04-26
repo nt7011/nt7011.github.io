@@ -203,8 +203,7 @@ const folderLayout = document.querySelector("#folder-layout");
 const pluginTarget = document.querySelector("#plugin-target");
 const pluginsFile = document.querySelector("#plugins-file");
 const packageList = document.querySelector("#package-list");
-const dllScannerStatus = document.querySelector("#dll-scanner-status");
-const dllScannerList = document.querySelector("#dll-scanner-list");
+const dllScannerView = document.querySelector("#dll-scanner-view");
 const configStatus = document.querySelector("#config-status");
 const settingsConfigFields = document.querySelector("#settings-config-fields");
 const translatorConfigFields = document.querySelector("#translator-config-fields");
@@ -683,34 +682,119 @@ function renderFolderDetails() {
 function renderDllScannerStatus() {
   const { message, tone } = getDllScannerStatus();
   const catalogCoverage = getDllCatalogCoverageText();
-  dllScannerStatus.classList.remove(
-    "is-neutral",
-    "is-warning",
-    "is-error",
-    "is-success",
-  );
-  dllScannerStatus.classList.add(`is-${tone}`);
-  dllScannerStatus.textContent = catalogCoverage
-    ? `${message}\n${catalogCoverage}`
-    : message;
 
-  dllScannerList.textContent = "";
-  const entries = state.dllScan?.entries ?? [];
-  if (entries.length === 0) {
-    const item = document.createElement("li");
-    item.textContent = state.rootHandle
-      ? t("scanner.list.empty")
-      : t("scanner.list.waiting");
-    dllScannerList.append(item);
+  dllScannerView.textContent = "";
+
+  if (hasUnverifiedDlls()) {
+    dllScannerView.append(buildDetectedDllScannerView());
     return;
   }
 
-  for (const entry of entries) {
+  if (state.dllScan && state.dllScan.dllCount > 0 && tone === "success") {
+    dllScannerView.append(buildSafeDllScannerView(message, catalogCoverage));
+    return;
+  }
+
+  dllScannerView.append(buildScannerStatusNote(message, tone, catalogCoverage));
+}
+
+function buildScannerStatusNote(message, tone, catalogCoverage = "") {
+  const status = document.createElement("p");
+  status.className = `section-note scanner-status is-${tone}`;
+  status.textContent = catalogCoverage
+    ? `${message}\n${catalogCoverage}`
+    : message;
+  return status;
+}
+
+function buildSafeDllScannerView(message, catalogCoverage) {
+  const details = document.createElement("details");
+  details.className = "scanner-details is-success";
+
+  const summary = document.createElement("summary");
+  summary.textContent = t("scanner.status.safe");
+  details.append(summary);
+
+  if (catalogCoverage) {
+    const coverage = document.createElement("p");
+    coverage.className = "scanner-meta";
+    coverage.textContent = catalogCoverage;
+    details.append(coverage);
+  }
+
+  const note = document.createElement("p");
+  note.className = "scanner-detail-note";
+  note.textContent = message;
+  details.append(note);
+
+  details.append(buildDllScannerList(state.dllScan.entries));
+  return details;
+}
+
+function buildDetectedDllScannerView() {
+  const container = document.createElement("div");
+  container.className = "scanner-details is-warning is-static";
+
+  const heading = document.createElement("p");
+  heading.className = "scanner-static-heading";
+  heading.textContent = t("scanner.status.detected");
+  container.append(heading);
+
+  const warning = document.createElement("p");
+  warning.className = "scanner-detected-warning";
+  warning.textContent = t("scanner.warning.unverified");
+  container.append(warning);
+
+  const catalogCoverage = getDllCatalogCoverageText();
+  if (catalogCoverage) {
+    const coverage = document.createElement("p");
+    coverage.className = "scanner-meta";
+    coverage.textContent = catalogCoverage;
+    container.append(coverage);
+  }
+
+  container.append(buildDllScannerList(state.dllScan.entries));
+  return container;
+}
+
+function buildDllScannerList(entries) {
+  const list = document.createElement("ul");
+  list.className = "scanner-list";
+
+  if (entries.length === 0) {
+    const item = document.createElement("li");
+    item.textContent = t("scanner.list.empty");
+    list.append(item);
+    return list;
+  }
+
+  for (const entry of sortDllScanEntries(entries)) {
     const item = document.createElement("li");
     item.className = `scanner-entry is-${entry.status}`;
     item.textContent = getDllScanEntryText(entry);
-    dllScannerList.append(item);
+    list.append(item);
   }
+
+  return list;
+}
+
+function sortDllScanEntries(entries) {
+  return [...entries].sort((left, right) => {
+    const priorityDifference = getDllScanEntryPriority(left) - getDllScanEntryPriority(right);
+    if (priorityDifference !== 0) {
+      return priorityDifference;
+    }
+
+    return left.path.localeCompare(right.path);
+  });
+}
+
+function getDllScanEntryPriority(entry) {
+  if (entry.status === "unknown" || entry.status === "error") {
+    return 0;
+  }
+
+  return 1;
 }
 
 function getDllCatalogCoverageText() {
@@ -720,7 +804,7 @@ function getDllCatalogCoverageText() {
   }
 
   return t("scanner.catalog.coverage", {
-    startVersion: catalog.startVersion || t("folder.unknown"),
+    startVersion: catalog.firstIncludedVersion || catalog.startVersion || t("folder.unknown"),
     latestVersion: catalog.latestVersion || t("folder.unknown"),
     releaseCount: catalog.releaseCount || catalog.includedReleases.length,
     hashCount: catalog.hashCount,
@@ -741,9 +825,7 @@ function getDllScannerStatus() {
   if (state.dllScanBusy) {
     return {
       tone: "neutral",
-      message: t("scanner.status.scanning", {
-        count: state.dllScanProgressCount,
-      }),
+      message: t("scanner.status.scanning"),
     };
   }
 
@@ -760,7 +842,7 @@ function getDllScannerStatus() {
     return {
       tone: state.dllHashCatalog ? "neutral" : "error",
       message: state.dllHashCatalog
-        ? t("scanner.status.initial", { count: state.dllHashCatalog.hashCount })
+        ? t("scanner.status.initial")
         : t("scanner.status.catalogError", {
             message: state.dllHashCatalogError || t("folder.unknown"),
           }),
@@ -770,7 +852,7 @@ function getDllScannerStatus() {
   if (!state.dllScan) {
     return {
       tone: "neutral",
-      message: t("scanner.status.pending"),
+      message: t("scanner.status.initial"),
     };
   }
 
@@ -803,10 +885,17 @@ function getDllScannerStatus() {
 
   return {
     tone: "success",
-    message: t("scanner.status.allowed", {
+    message: t("scanner.status.allowedDetails", {
       dllCount: state.dllScan.dllCount,
     }),
   };
+}
+
+function hasUnverifiedDlls() {
+  return Boolean(
+    state.dllScan
+      && (state.dllScan.unknownCount > 0 || state.dllScan.unreadableCount > 0),
+  );
 }
 
 function getDllScanEntryText(entry) {
