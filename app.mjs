@@ -557,6 +557,7 @@ async function handleScanDllFolderInput() {
   }
 
   state.dllScanBusy = true;
+  state.dllScanNeedsFilePicker = false;
   state.dllScanProgressCount = 0;
   state.dllScan = null;
   render();
@@ -971,7 +972,7 @@ function getDllScannerStatus() {
     };
   }
 
-  if (!state.rootHandle) {
+  if (!state.rootHandle && !state.dllScan) {
     return {
       tone: state.dllHashCatalog ? "neutral" : "error",
       message: state.dllHashCatalog
@@ -1606,7 +1607,7 @@ function renderActionState() {
   installButton.disabled = state.busy || !canInstall();
   saveConfigButton.disabled = state.busy || !canSaveConfig();
   resetConfigButton.disabled = state.busy || !canResetConfig();
-  scanDllFolderButton.hidden = !state.dllScanNeedsFilePicker;
+  scanDllFolderButton.hidden = false;
   scanDllFolderButton.disabled = state.dllScanBusy || !state.dllHashCatalog;
   const reinstall = hasExistingInstallation();
 
