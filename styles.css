@@ -556,20 +556,101 @@ button:disabled {
 }
 
 .package-list,
+.scanner-list,
 .log-list,
 .manual-steps {
   margin: 0;
   padding-left: 20px;
 }
 
-.package-list {
+.package-list,
+.scanner-list {
   color: var(--muted);
 }
 
 .package-list li + li,
+.scanner-list li + li,
 .log-list li + li,
 .manual-steps li + li {
   margin-top: 8px;
+}
+
+.scanner-status {
+  margin-bottom: 0;
+}
+
+.scanner-details {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f5f7f6;
+  color: var(--muted);
+}
+
+.scanner-details.is-success {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.scanner-details.is-warning {
+  border-color: #fdba74;
+  background: #fff7ed;
+}
+
+.scanner-details summary,
+.scanner-static-heading {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.scanner-details.is-success summary {
+  cursor: pointer;
+  color: var(--success);
+}
+
+.scanner-details.is-warning .scanner-static-heading,
+.scanner-detected-warning {
+  color: var(--warn);
+}
+
+.scanner-details[open] summary {
+  margin-bottom: 8px;
+}
+
+.scanner-static-heading {
+  margin-bottom: 8px;
+}
+
+.scanner-meta,
+.scanner-detail-note,
+.scanner-detected-warning {
+  margin-bottom: 8px;
+  font-size: 0.95rem;
+}
+
+.scanner-detected-warning {
+}
+
+.scanner-list {
+  max-height: 260px;
+  overflow: auto;
+}
+
+.scanner-entry {
+  overflow-wrap: anywhere;
+}
+
+.scanner-entry.is-allowed {
+  color: var(--success);
+}
+
+.scanner-entry.is-unknown {
+  color: var(--warn);
+}
+
+.scanner-entry.is-error {
+  color: var(--error);
 }
 
 .log-list {

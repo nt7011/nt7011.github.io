@@ -20,6 +20,10 @@ import {
   createTranslator,
   detectPreferredLocale,
 } from "./i18n.mjs";
+import {
+  loadNwjsDllHashCatalog,
+  scanDirectoryDlls,
+} from "./scanner/scanner-core.mjs";
 
 const SETTINGS_FIELD = {
   id: "translation.disableCjkFilter",
@@ -178,6 +182,12 @@ const state = {
   translatorVersion: null,
   installedTranslatorVersion: null,
   installedVersionChecked: false,
+  dllHashCatalog: null,
+  dllHashCatalogError: "",
+  dllScan: null,
+  dllScanBusy: false,
+  dllScanProgressCount: 0,
+  dllScanRunId: 0,
 };
 
 const pickFolderButton = document.querySelector("#pick-folder-button");
@@ -193,6 +203,7 @@ const folderLayout = document.querySelector("#folder-layout");
 const pluginTarget = document.querySelector("#plugin-target");
 const pluginsFile = document.querySelector("#plugins-file");
 const packageList = document.querySelector("#package-list");
+const dllScannerView = document.querySelector("#dll-scanner-view");
 const configStatus = document.querySelector("#config-status");
 const settingsConfigFields = document.querySelector("#settings-config-fields");
 const translatorConfigFields = document.querySelector("#translator-config-fields");
@@ -227,6 +238,7 @@ function applyDocumentTranslations() {
 
 async function initialize() {
   state.translatorVersion = await loadVersionInfo(new URL("./version.json", import.meta.url));
+  await initializeDllHashCatalog();
 
   if (!supportsInstallation()) {
     pushLog(t("error.browserCannotInstall"), "error");
@@ -253,11 +265,33 @@ async function initialize() {
   render();
 }
 
+async function initializeDllHashCatalog() {
+  try {
+    state.dllHashCatalog = await loadNwjsDllHashCatalog(
+      new URL("./scanner/nwjs-dll-hashes.json", import.meta.url),
+    );
+    pushLog(t("scanner.log.catalogLoaded", {
+      count: state.dllHashCatalog.hashCount,
+    }), "info");
+  } catch (error) {
+    state.dllHashCatalogError = error.message;
+    pushLog(t("scanner.error.catalogLoad", { message: error.message }), "error");
+  }
+}
+
 async function handlePickFolder() {
   try {
     const handle = await window.showDirectoryPicker({ mode: "readwrite" });
+    const permissionGranted = await ensureReadWritePermission(handle);
+    if (!permissionGranted) {
+      throw new Error(t("error.permissionDenied"));
+    }
+
     state.rootHandle = handle;
+    resetSelectedFolderState();
+    resetDllScan();
     pushLog(t("log.selectedFolder", { name: handle.name }), "info");
+    render();
 
     state.inspection = await inspectGameDirectory(handle, { t });
     if (state.inspection.valid) {
@@ -266,6 +300,7 @@ async function handlePickFolder() {
       pushLog(state.inspection.reason, "warning");
     }
 
+    startDllScan(handle);
     await refreshInstalledConfigSnapshot({ logOutcome: true });
   } catch (error) {
     if (error?.name !== "AbortError") {
@@ -274,6 +309,68 @@ async function handlePickFolder() {
   }
 
   render();
+}
+
+function startDllScan(rootHandle) {
+  if (!rootHandle) {
+    return;
+  }
+
+  const scanRunId = state.dllScanRunId + 1;
+  state.dllScanRunId = scanRunId;
+
+  if (!state.dllHashCatalog) {
+    state.dllScan = {
+      errorMessage: state.dllHashCatalogError || t("scanner.error.catalogUnavailable"),
+    };
+    pushLog(t("scanner.error.scanFailed", {
+      message: state.dllScan.errorMessage,
+    }), "error");
+    render();
+    return;
+  }
+
+  state.dllScanBusy = true;
+  state.dllScanProgressCount = 0;
+  state.dllScan = null;
+  render();
+
+  scanDirectoryDlls(rootHandle, state.dllHashCatalog, {
+    onProgress: ({ scanned }) => {
+      if (!isCurrentDllScan(scanRunId, rootHandle)) {
+        return;
+      }
+
+      state.dllScanProgressCount = scanned;
+      renderDllScannerStatus();
+    },
+  })
+    .then((scan) => {
+      if (!isCurrentDllScan(scanRunId, rootHandle)) {
+        return;
+      }
+
+      state.dllScan = scan;
+      pushLog(getDllScanLogMessage(scan), getDllScanTone(scan));
+    })
+    .catch((error) => {
+      if (!isCurrentDllScan(scanRunId, rootHandle)) {
+        return;
+      }
+
+      state.dllScan = {
+        errorMessage: error.message,
+      };
+      pushLog(t("scanner.error.scanFailed", { message: error.message }), "error");
+    })
+    .finally(() => {
+      if (!isCurrentDllScan(scanRunId, rootHandle)) {
+        return;
+      }
+
+      state.dllScanBusy = false;
+      render();
+    });
 }
 
 async function handleInstall() {
@@ -473,6 +570,7 @@ function render() {
   renderConfigAlert();
   renderSupportNote();
   renderFolderDetails();
+  renderDllScannerStatus();
   renderConfigStatus();
   renderLog();
   renderActionState();
@@ -579,6 +677,278 @@ function renderFolderDetails() {
     item.textContent = `${candidate.path}: ${candidate.exists ? t("package.statusFound") : t("package.statusMissing")}`;
     packageList.append(item);
   }
+}
+
+function renderDllScannerStatus() {
+  const { message, tone } = getDllScannerStatus();
+  const catalogCoverage = getDllCatalogCoverageText();
+
+  dllScannerView.textContent = "";
+
+  if (hasUnverifiedDlls()) {
+    dllScannerView.append(buildDetectedDllScannerView());
+    return;
+  }
+
+  if (state.dllScan && state.dllScan.dllCount > 0 && tone === "success") {
+    dllScannerView.append(buildSafeDllScannerView(message, catalogCoverage));
+    return;
+  }
+
+  dllScannerView.append(buildScannerStatusNote(message, tone, catalogCoverage));
+}
+
+function buildScannerStatusNote(message, tone, catalogCoverage = "") {
+  const status = document.createElement("p");
+  status.className = `section-note scanner-status is-${tone}`;
+  status.textContent = catalogCoverage
+    ? `${message}\n${catalogCoverage}`
+    : message;
+  return status;
+}
+
+function buildSafeDllScannerView(message, catalogCoverage) {
+  const details = document.createElement("details");
+  details.className = "scanner-details is-success";
+
+  const summary = document.createElement("summary");
+  summary.textContent = t("scanner.status.safe");
+  details.append(summary);
+
+  if (catalogCoverage) {
+    const coverage = document.createElement("p");
+    coverage.className = "scanner-meta";
+    coverage.textContent = catalogCoverage;
+    details.append(coverage);
+  }
+
+  const note = document.createElement("p");
+  note.className = "scanner-detail-note";
+  note.textContent = message;
+  details.append(note);
+
+  details.append(buildDllScannerList(state.dllScan.entries));
+  return details;
+}
+
+function buildDetectedDllScannerView() {
+  const container = document.createElement("div");
+  container.className = "scanner-details is-warning is-static";
+
+  const heading = document.createElement("p");
+  heading.className = "scanner-static-heading";
+  heading.textContent = t("scanner.status.detected");
+  container.append(heading);
+
+  const warning = document.createElement("p");
+  warning.className = "scanner-detected-warning";
+  warning.textContent = t("scanner.warning.unverified");
+  container.append(warning);
+
+  const catalogCoverage = getDllCatalogCoverageText();
+  if (catalogCoverage) {
+    const coverage = document.createElement("p");
+    coverage.className = "scanner-meta";
+    coverage.textContent = catalogCoverage;
+    container.append(coverage);
+  }
+
+  container.append(buildDllScannerList(state.dllScan.entries));
+  return container;
+}
+
+function buildDllScannerList(entries) {
+  const list = document.createElement("ul");
+  list.className = "scanner-list";
+
+  if (entries.length === 0) {
+    const item = document.createElement("li");
+    item.textContent = t("scanner.list.empty");
+    list.append(item);
+    return list;
+  }
+
+  for (const entry of sortDllScanEntries(entries)) {
+    const item = document.createElement("li");
+    item.className = `scanner-entry is-${entry.status}`;
+    item.textContent = getDllScanEntryText(entry);
+    list.append(item);
+  }
+
+  return list;
+}
+
+function sortDllScanEntries(entries) {
+  return [...entries].sort((left, right) => {
+    const priorityDifference = getDllScanEntryPriority(left) - getDllScanEntryPriority(right);
+    if (priorityDifference !== 0) {
+      return priorityDifference;
+    }
+
+    return left.path.localeCompare(right.path);
+  });
+}
+
+function getDllScanEntryPriority(entry) {
+  if (entry.status === "unknown" || entry.status === "error") {
+    return 0;
+  }
+
+  return 1;
+}
+
+function getDllCatalogCoverageText() {
+  const catalog = state.dllHashCatalog;
+  if (!catalog) {
+    return "";
+  }
+
+  return t("scanner.catalog.coverage", {
+    startVersion: catalog.firstIncludedVersion || catalog.startVersion || t("folder.unknown"),
+    latestVersion: catalog.latestVersion || t("folder.unknown"),
+    releaseCount: catalog.releaseCount || catalog.includedReleases.length,
+    hashCount: catalog.hashCount,
+    generatedAt: formatCatalogGeneratedAt(catalog.generatedAt),
+  });
+}
+
+function formatCatalogGeneratedAt(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return t("folder.unknown");
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+function getDllScannerStatus() {
+  if (state.dllScanBusy) {
+    return {
+      tone: "neutral",
+      message: t("scanner.status.scanning"),
+    };
+  }
+
+  if (state.dllScan?.errorMessage) {
+    return {
+      tone: "error",
+      message: t("scanner.status.error", {
+        message: state.dllScan.errorMessage,
+      }),
+    };
+  }
+
+  if (!state.rootHandle) {
+    return {
+      tone: state.dllHashCatalog ? "neutral" : "error",
+      message: state.dllHashCatalog
+        ? t("scanner.status.initial")
+        : t("scanner.status.catalogError", {
+            message: state.dllHashCatalogError || t("folder.unknown"),
+          }),
+    };
+  }
+
+  if (!state.dllScan) {
+    return {
+      tone: "neutral",
+      message: t("scanner.status.initial"),
+    };
+  }
+
+  if (state.dllScan.dllCount === 0) {
+    return {
+      tone: "success",
+      message: t("scanner.status.noDlls"),
+    };
+  }
+
+  if (state.dllScan.unreadableCount > 0) {
+    return {
+      tone: "error",
+      message: t("scanner.status.unreadable", {
+        unreadableCount: state.dllScan.unreadableCount,
+        dllCount: state.dllScan.dllCount,
+      }),
+    };
+  }
+
+  if (state.dllScan.unknownCount > 0) {
+    return {
+      tone: "warning",
+      message: t("scanner.status.unknown", {
+        unknownCount: state.dllScan.unknownCount,
+        dllCount: state.dllScan.dllCount,
+      }),
+    };
+  }
+
+  return {
+    tone: "success",
+    message: t("scanner.status.allowedDetails", {
+      dllCount: state.dllScan.dllCount,
+    }),
+  };
+}
+
+function hasUnverifiedDlls() {
+  return Boolean(
+    state.dllScan
+      && (state.dllScan.unknownCount > 0 || state.dllScan.unreadableCount > 0),
+  );
+}
+
+function getDllScanEntryText(entry) {
+  if (entry.status === "allowed") {
+    const match = entry.matches[0];
+    const matchText = match
+      ? t("scanner.entry.match", {
+          release: match.release,
+          fileName: match.fileName,
+        })
+      : t("scanner.entry.allowed");
+    return `${entry.path}: ${matchText}`;
+  }
+
+  if (entry.status === "error") {
+    return `${entry.path}: ${t("scanner.entry.error", {
+      message: entry.errorMessage || t("folder.unknown"),
+    })}`;
+  }
+
+  return `${entry.path}: ${t("scanner.entry.unknown")}`;
+}
+
+function getDllScanLogMessage(scan) {
+  if (scan.unreadableCount > 0) {
+    return t("scanner.log.unreadable", {
+      unreadableCount: scan.unreadableCount,
+      dllCount: scan.dllCount,
+    });
+  }
+
+  if (scan.unknownCount > 0) {
+    return t("scanner.log.unknown", {
+      unknownCount: scan.unknownCount,
+      dllCount: scan.dllCount,
+    });
+  }
+
+  return t("scanner.log.allowed", {
+    dllCount: scan.dllCount,
+  });
+}
+
+function getDllScanTone(scan) {
+  if (scan.unreadableCount > 0) {
+    return "error";
+  }
+
+  if (scan.unknownCount > 0) {
+    return "warning";
+  }
+
+  return "success";
 }
 
 function renderConfigStatus() {
@@ -1160,6 +1530,32 @@ function hasUnsavedConfigChanges() {
 
 function hasExistingInstallation() {
   return Boolean(state.existingInstallationDetected);
+}
+
+function resetDllScan() {
+  state.dllScan = null;
+  state.dllScanBusy = false;
+  state.dllScanProgressCount = 0;
+}
+
+function isCurrentDllScan(scanRunId, rootHandle) {
+  return state.dllScanRunId === scanRunId && state.rootHandle === rootHandle;
+}
+
+function resetSelectedFolderState() {
+  state.inspection = null;
+  state.existingInstallationDetected = false;
+  state.loadedConfigs = null;
+  state.configDraft = null;
+  state.configEditable = false;
+  state.configAlertMessage = "";
+  state.configStatusMessage = t("config.status.initial");
+  state.configUnsavedMessage = "";
+  state.configUnsavedReminderFlashPending = false;
+  state.configErrors = new Set();
+  state.installedTranslatorVersion = null;
+  state.installedVersionChecked = false;
+  renderConfigEditor();
 }
 
 function getSelectedProvider(config) {

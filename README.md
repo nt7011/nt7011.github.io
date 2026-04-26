@@ -11,6 +11,7 @@ The actual translator project lives here: [RPG-Maker-Live-Translator](https://gi
 - Adds the `live-translator-loader` entry to `plugins.js`
 - Patches an empty `name` field in `package.json` to `Game` when needed
 - Loads, edits, and saves installed `settings.json` and `translator.json`
+- Scans DLL files based on all known NW.js releases
 - Links to an updated NW.js ZIP for games that fail to launch with the bundled runtime
 
 ## Requirements
@@ -36,6 +37,7 @@ The actual translator project lives here: [RPG-Maker-Live-Translator](https://gi
 - `index.html`, `app.mjs`, `installer-core.mjs`: Browser UI and install logic
 - `config-editor.mjs`: Config field helpers
 - `i18n.mjs`: English and Korean UI strings
+- `scanner/`: NW.js DLL scanner, bundled hash catalog, and catalog download script
 - `live-translator-installer/`: Plugin files copied into the game
 - `game_example/`, `game_example_2/`: Sample target folders for testing
 - `tests/`: Node-based tests for config and installer behavior
@@ -56,4 +58,14 @@ Run the test suite with:
 
 ```bash
 node --test tests/*.test.mjs
+```
+
+## NW.js DLL hash catalog
+
+The installer does not contact `dl.nwjs.io` while scanning a user's folder. DLL hashes for known NW.js releases are bundled in `scanner/nwjs-dll-hashes.json`.
+
+To refresh the catalog from official NW.js release checksum files:
+
+```bash
+node scanner/download-nwjs-hashes.mjs --output scanner/nwjs-dll-hashes.json
 ```
