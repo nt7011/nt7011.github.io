@@ -94,6 +94,37 @@ export async function scanDirectoryDlls(rootHandle, catalog, options = {}) {
     });
   }
 
+  return summarizeDllScanEntries(entries);
+}
+
+export async function scanFileListDlls(files, catalog, options = {}) {
+  const hashCatalog = catalog?.hashes instanceof Map
+    ? catalog
+    : normalizeHashCatalog(catalog);
+  const onProgress = typeof options.onProgress === "function"
+    ? options.onProgress
+    : null;
+  const entries = [];
+
+  for (const file of Array.from(files ?? [])) {
+    const path = normalizePickedFilePath(file);
+    const fileName = file?.name || getBaseName(path);
+    if (!DLL_FILE_PATTERN.test(fileName) && !DLL_FILE_PATTERN.test(path)) {
+      continue;
+    }
+
+    const scanEntry = await scanPickedDllFile({ file, path, fileName }, hashCatalog);
+    entries.push(scanEntry);
+    onProgress?.({
+      scanned: entries.length,
+      entry: scanEntry,
+    });
+  }
+
+  return summarizeDllScanEntries(entries);
+}
+
+function summarizeDllScanEntries(entries) {
   const allowedCount = entries.filter((entry) => entry.status === "allowed").length;
   const unknownCount = entries.filter((entry) => entry.status === "unknown").length;
   const unreadableCount = entries.filter((entry) => entry.status === "error").length;
@@ -124,6 +155,30 @@ async function scanDllFile(fileEntry, catalog) {
     return {
       path: fileEntry.path,
       fileName: fileEntry.name,
+      status: "error",
+      hash: null,
+      matches: [],
+      errorMessage: error?.message ?? String(error),
+    };
+  }
+}
+
+async function scanPickedDllFile(fileEntry, catalog) {
+  try {
+    const hash = await hashFile(fileEntry.file);
+    const match = catalog.hashes.get(hash);
+
+    return {
+      path: fileEntry.path,
+      fileName: fileEntry.fileName,
+      status: match ? "allowed" : "unknown",
+      hash,
+      matches: match?.files ?? [],
+    };
+  } catch (error) {
+    return {
+      path: fileEntry.path,
+      fileName: fileEntry.fileName,
       status: "error",
       hash: null,
       matches: [],
@@ -209,6 +264,10 @@ function normalizeHash(value) {
 
 function getBaseName(path) {
   return path.split(/[\\/]/).pop() ?? path;
+}
+
+function normalizePickedFilePath(file) {
+  return String(file?.webkitRelativePath || file?.name || "");
 }
 
 function bytesToHex(bytes) {

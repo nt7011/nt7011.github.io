@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   normalizeHashCatalog,
   scanDirectoryDlls,
+  scanFileListDlls,
 } from "../scanner/scanner-core.mjs";
 
 test("normalizeHashCatalog keeps catalog version metadata", () => {
@@ -106,6 +107,42 @@ test("scanDirectoryDlls recognizes directory handles without kind", async () => 
   assert.equal(scan.entries[0].path, "www/nw.dll");
 });
 
+test("scanFileListDlls scans DLL File objects selected through a file input", async () => {
+  const rootDll = createFakePickedFile("nw.dll", "Game/nw.dll", "official dll");
+  const nestedDll = createFakePickedFile("custom.dll", "Game/swiftshader/custom.dll", "custom dll");
+  const note = createFakePickedFile("notes.txt", "Game/notes.txt", "not scanned");
+
+  const allowedHash = await sha256Hex(new TextEncoder().encode("official dll"));
+  const scan = await scanFileListDlls([rootDll, nestedDll, note], {
+    hashes: [
+      {
+        hash: allowedHash,
+        files: [
+          {
+            release: "v0.111.0",
+            path: "nwjs-v0.111.0-win-x64/nw.dll",
+            fileName: "nw.dll",
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(scan.dllCount, 2);
+  assert.equal(scan.allowedCount, 1);
+  assert.equal(scan.unknownCount, 1);
+  assert.equal(scan.unreadableCount, 0);
+  assert.deepEqual(
+    scan.entries
+      .map((entry) => [entry.path, entry.status])
+      .sort((left, right) => left[0].localeCompare(right[0])),
+    [
+      ["Game/nw.dll", "allowed"],
+      ["Game/swiftshader/custom.dll", "unknown"],
+    ],
+  );
+});
+
 async function sha256Hex(bytes) {
   const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)]
@@ -115,6 +152,17 @@ async function sha256Hex(bytes) {
 
 function createFakeDirectory(name, options = {}) {
   return new FakeDirectoryHandle(name, options);
+}
+
+function createFakePickedFile(name, webkitRelativePath, text) {
+  return {
+    name,
+    webkitRelativePath,
+    async arrayBuffer() {
+      const bytes = new TextEncoder().encode(text);
+      return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+    },
+  };
 }
 
 class FakeDirectoryHandle {

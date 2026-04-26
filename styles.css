@@ -193,6 +193,18 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 .support-note {
   min-height: 24px;
   margin-top: 14px;
@@ -577,6 +589,10 @@ button:disabled {
 
 .scanner-status {
   margin-bottom: 0;
+}
+
+.scanner-action-button {
+  margin-top: 12px;
 }
 
 .scanner-details {

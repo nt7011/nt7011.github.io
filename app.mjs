@@ -23,6 +23,7 @@ import {
 import {
   loadNwjsDllHashCatalog,
   scanDirectoryDlls,
+  scanFileListDlls,
 } from "./scanner/scanner-core.mjs";
 
 const SETTINGS_FIELD = {
@@ -144,6 +145,7 @@ const DEEPL_TRANSLATOR_FIELDS = [
   },
 ];
 const DEEPL_APIKEY_PLACEHOLDER_SUBSTRING = "__NONE__";
+const DLL_DIRECTORY_POLICY_PROBE_FILE_NAME = "__dll_scan_probe__.dll";
 const CONFIG_STATUS_TONE_CLASSES = [
   "is-neutral",
   "is-warning",
@@ -186,6 +188,7 @@ const state = {
   dllHashCatalogError: "",
   dllScan: null,
   dllScanBusy: false,
+  dllScanNeedsFilePicker: false,
   dllScanProgressCount: 0,
   dllScanRunId: 0,
 };
@@ -204,6 +207,8 @@ const pluginTarget = document.querySelector("#plugin-target");
 const pluginsFile = document.querySelector("#plugins-file");
 const packageList = document.querySelector("#package-list");
 const dllScannerView = document.querySelector("#dll-scanner-view");
+const scanDllFolderButton = document.querySelector("#scan-dll-folder-button");
+const scanDllFolderInput = document.querySelector("#scan-dll-folder-input");
 const configStatus = document.querySelector("#config-status");
 const settingsConfigFields = document.querySelector("#settings-config-fields");
 const translatorConfigFields = document.querySelector("#translator-config-fields");
@@ -215,6 +220,8 @@ pickFolderButton.addEventListener("click", handlePickFolder);
 installButton.addEventListener("click", handleInstall);
 saveConfigButton.addEventListener("click", handleSaveConfig);
 resetConfigButton.addEventListener("click", handleResetConfig);
+scanDllFolderButton.addEventListener("click", handleScanDllFolderButton);
+scanDllFolderInput.addEventListener("change", handleScanDllFolderInput);
 configStatus.addEventListener("animationend", handleConfigStatusAnimationEnd);
 
 render();
@@ -331,21 +338,39 @@ function startDllScan(rootHandle) {
   }
 
   state.dllScanBusy = true;
+  state.dllScanNeedsFilePicker = false;
   state.dllScanProgressCount = 0;
   state.dllScan = null;
   render();
 
-  scanDirectoryDlls(rootHandle, state.dllHashCatalog, {
-    onProgress: ({ scanned }) => {
+  detectDllDirectoryAccessBlocked(rootHandle)
+    .then((blocked) => {
       if (!isCurrentDllScan(scanRunId, rootHandle)) {
+        return null;
+      }
+
+      if (blocked) {
+        state.dllScanNeedsFilePicker = true;
+        pushLog(t("scanner.log.folderPickerNeeded"), "warning");
+        return null;
+      }
+
+      return scanDirectoryDlls(rootHandle, state.dllHashCatalog, {
+        onProgress: ({ scanned }) => {
+          if (!isCurrentDllScan(scanRunId, rootHandle)) {
+            return;
+          }
+
+          state.dllScanProgressCount = scanned;
+          renderDllScannerStatus();
+        },
+      });
+    })
+    .then((scan) => {
+      if (!scan) {
         return;
       }
 
-      state.dllScanProgressCount = scanned;
-      renderDllScannerStatus();
-    },
-  })
-    .then((scan) => {
       if (!isCurrentDllScan(scanRunId, rootHandle)) {
         return;
       }
@@ -371,6 +396,24 @@ function startDllScan(rootHandle) {
       state.dllScanBusy = false;
       render();
     });
+}
+
+async function detectDllDirectoryAccessBlocked(rootHandle) {
+  if (typeof rootHandle?.getFileHandle !== "function") {
+    return false;
+  }
+
+  try {
+    await rootHandle.getFileHandle(DLL_DIRECTORY_POLICY_PROBE_FILE_NAME);
+    return false;
+  } catch (error) {
+    return isFileNameNotAllowedError(error);
+  }
+}
+
+function isFileNameNotAllowedError(error) {
+  return error?.name === "TypeError"
+    && /name is not allowed/i.test(String(error.message ?? ""));
 }
 
 async function handleInstall() {
@@ -472,6 +515,89 @@ function handleResetConfig() {
   renderConfigEditor();
   render();
   pushLog(t("log.resetConfig"), "info");
+}
+
+function handleScanDllFolderButton() {
+  scanDllFolderInput.value = "";
+  scanDllFolderInput.click();
+}
+
+async function handleScanDllFolderInput() {
+  const files = Array.from(scanDllFolderInput.files ?? []);
+  if (files.length === 0) {
+    return;
+  }
+
+  const selectedFolderName = getPickedFolderName(files);
+  if (state.rootHandle?.name && selectedFolderName && selectedFolderName !== state.rootHandle.name) {
+    const message = t("scanner.error.folderMismatch", {
+      selectedFolder: selectedFolderName,
+      expectedFolder: state.rootHandle.name,
+    });
+    state.dllScan = {
+      errorMessage: message,
+    };
+    pushLog(t("scanner.error.scanFailed", { message }), "error");
+    render();
+    return;
+  }
+
+  const scanRunId = state.dllScanRunId + 1;
+  state.dllScanRunId = scanRunId;
+
+  if (!state.dllHashCatalog) {
+    state.dllScan = {
+      errorMessage: state.dllHashCatalogError || t("scanner.error.catalogUnavailable"),
+    };
+    pushLog(t("scanner.error.scanFailed", {
+      message: state.dllScan.errorMessage,
+    }), "error");
+    render();
+    return;
+  }
+
+  state.dllScanBusy = true;
+  state.dllScanProgressCount = 0;
+  state.dllScan = null;
+  render();
+
+  try {
+    const scan = await scanFileListDlls(files, state.dllHashCatalog, {
+      onProgress: ({ scanned }) => {
+        if (state.dllScanRunId !== scanRunId) {
+          return;
+        }
+
+        state.dllScanProgressCount = scanned;
+        renderDllScannerStatus();
+      },
+    });
+
+    if (state.dllScanRunId !== scanRunId) {
+      return;
+    }
+
+    state.dllScan = scan;
+    state.dllScanNeedsFilePicker = false;
+    pushLog(t("scanner.log.filePickerComplete", {
+      dllCount: scan.dllCount,
+      fileCount: files.length,
+    }), getDllScanTone(scan));
+  } catch (error) {
+    if (state.dllScanRunId !== scanRunId) {
+      return;
+    }
+
+    state.dllScan = {
+      errorMessage: error.message,
+    };
+    pushLog(t("scanner.error.scanFailed", { message: error.message }), "error");
+  } finally {
+    if (state.dllScanRunId === scanRunId) {
+      state.dllScanBusy = false;
+      render();
+    }
+  }
 }
 
 async function refreshInstalledConfigSnapshot(options = {}) {
@@ -835,6 +961,13 @@ function getDllScannerStatus() {
       message: t("scanner.status.error", {
         message: state.dllScan.errorMessage,
       }),
+    };
+  }
+
+  if (state.dllScanNeedsFilePicker) {
+    return {
+      tone: "warning",
+      message: t("scanner.status.folderPickerNeeded"),
     };
   }
 
@@ -1473,12 +1606,15 @@ function renderActionState() {
   installButton.disabled = state.busy || !canInstall();
   saveConfigButton.disabled = state.busy || !canSaveConfig();
   resetConfigButton.disabled = state.busy || !canResetConfig();
+  scanDllFolderButton.hidden = !state.dllScanNeedsFilePicker;
+  scanDllFolderButton.disabled = state.dllScanBusy || !state.dllHashCatalog;
   const reinstall = hasExistingInstallation();
 
   pickFolderButton.title = t("tooltip.pickFolderButton");
   installButton.title = t(reinstall ? "tooltip.reinstallButton" : "tooltip.installButton");
   saveConfigButton.title = t("tooltip.saveConfigButton");
   resetConfigButton.title = t("tooltip.resetConfigButton");
+  scanDllFolderButton.title = t("tooltip.scanDllFolderButton");
 
   installButton.textContent = state.busyAction === "install"
     ? t(reinstall ? "button.reinstalling" : "button.installing")
@@ -1487,6 +1623,9 @@ function renderActionState() {
     ? t("button.saving")
     : t("button.saveConfig");
   resetConfigButton.textContent = t("button.resetConfig");
+  scanDllFolderButton.textContent = state.dllScanBusy
+    ? t("scanner.status.scanning")
+    : t("button.scanDllFolder");
 }
 
 function canInstall() {
@@ -1532,9 +1671,20 @@ function hasExistingInstallation() {
   return Boolean(state.existingInstallationDetected);
 }
 
+function getPickedFolderName(files) {
+  const firstPath = String(files[0]?.webkitRelativePath ?? "");
+  const separatorIndex = firstPath.indexOf("/");
+  if (separatorIndex <= 0) {
+    return "";
+  }
+
+  return firstPath.slice(0, separatorIndex);
+}
+
 function resetDllScan() {
   state.dllScan = null;
   state.dllScanBusy = false;
+  state.dllScanNeedsFilePicker = false;
   state.dllScanProgressCount = 0;
 }
 
