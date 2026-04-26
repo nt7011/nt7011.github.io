@@ -9,6 +9,7 @@
     "logger.js",
     "precacher/precacher.js",
     "precacher/pretranslator.js",
+    "precacher-ui.json",
     "precacher-ui/app.js",
     "precacher-ui/index.html",
     "precacher-ui/style.css",

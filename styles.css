@@ -556,20 +556,48 @@ button:disabled {
 }
 
 .package-list,
+.scanner-list,
 .log-list,
 .manual-steps {
   margin: 0;
   padding-left: 20px;
 }
 
-.package-list {
+.package-list,
+.scanner-list {
   color: var(--muted);
 }
 
 .package-list li + li,
+.scanner-list li + li,
 .log-list li + li,
 .manual-steps li + li {
   margin-top: 8px;
+}
+
+.scanner-status {
+  margin-bottom: 12px;
+}
+
+.scanner-list {
+  max-height: 260px;
+  overflow: auto;
+}
+
+.scanner-entry {
+  overflow-wrap: anywhere;
+}
+
+.scanner-entry.is-allowed {
+  color: var(--success);
+}
+
+.scanner-entry.is-unknown {
+  color: var(--warn);
+}
+
+.scanner-entry.is-error {
+  color: var(--error);
 }
 
 .log-list {
