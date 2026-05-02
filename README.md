@@ -7,7 +7,7 @@ The actual translator project lives here: [RPG-Maker-Live-Translator](https://gi
 ## What it does
 
 - Detects RPG Maker folder layouts using either `js/plugins` or `www/js/plugins`
-- Copies the loader and support files from `live-translator-installer/`
+- Copies the loader and support files from `live-translator-installer/install-manifest.json`
 - Adds the `live-translator-loader` entry to `plugins.js`
 - Patches an empty `name` field in `package.json` to `Game` when needed
 - Loads, edits, and saves installed `settings.json` and `translator.json`
@@ -38,7 +38,7 @@ The actual translator project lives here: [RPG-Maker-Live-Translator](https://gi
 - `config-editor.mjs`: Config field helpers
 - `i18n.mjs`: English and Korean UI strings
 - `scanner/`: NW.js DLL scanner, bundled hash catalog, and catalog download script
-- `live-translator-installer/`: Plugin files copied into the game
+- `live-translator-installer/`: Plugin files and shared install manifest copied into the game
 - `game_example/`, `game_example_2/`: Sample target folders for testing
 - `tests/`: Node-based tests for config and installer behavior
 

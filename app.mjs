@@ -1,5 +1,6 @@
 import {
   ensureReadWritePermission,
+  INSTALL_MANIFEST_URL,
   inspectGameDirectory,
   installGame,
   isVersionOutdated,
@@ -254,10 +255,10 @@ async function initialize() {
   }
 
   try {
-    state.manifest = await loadManifest(new URL("./installer-manifest.json", import.meta.url), { t });
+    state.manifest = await loadManifest(INSTALL_MANIFEST_URL, { t });
     pushLog(
       t("log.bundleLoaded", {
-        count: state.manifest.supportFiles.length + 2,
+        count: state.manifest.install.files.length + 3,
       }),
       "info",
     );
