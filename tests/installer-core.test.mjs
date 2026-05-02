@@ -244,6 +244,40 @@ test("installGame overwrites existing config files during reinstall", async () =
   );
 });
 
+test("installGame copies release settings when development settings are absent", async () => {
+  const rootHandle = createFakeDirectory("Game");
+  const jsHandle = rootHandle.addDirectory("js");
+  const pluginsHandle = jsHandle.addDirectory("plugins");
+
+  rootHandle.setFileText("package.json", '{"name":"Game"}\n');
+  jsHandle.setFileText("plugins.js", "[]\n");
+
+  const manifest = createTestManifest();
+  const releaseSettings = '{\n    "debug": {\n        "level": "warn"\n    },\n    "translation": {\n        "maxOutputTokens": 512\n    },\n    "gameMessage": {\n        "textScale": 100,\n        "originAwareLineBreaks": false\n    },\n    "textScaleOthers": 100\n}\n';
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => createFetchResponse({
+    "/version.json": JSON.stringify({ version: "2.4" }),
+    "/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
+    "/live-translator-installer/config-templates/settings.release.json": releaseSettings,
+    "/live-translator-installer/translator.json": "{}\n",
+  }, url);
+
+  try {
+    await installGame(rootHandle, manifest, {
+      baseUrl: "https://example.test/app.mjs",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  const supportHandle = pluginsHandle.getDirectory("live-translator");
+  assert.equal(
+    supportHandle.readFileText("settings.json"),
+    releaseSettings,
+  );
+});
+
 test("installGame copies nested support files", async () => {
   const rootHandle = createFakeDirectory("Game");
   const jsHandle = rootHandle.addDirectory("js");
@@ -424,7 +458,6 @@ test("install-manifest.json references files present in the copied support bundl
   ]);
 
   await readFile(path.join(bundleDirectory, manifest.loader));
-  await readFile(path.join(bundleDirectory, manifest.install.settings.developmentSource));
   await readFile(path.join(bundleDirectory, manifest.install.settings.releaseSource));
 
   for (const file of manifest.install.files) {
