@@ -6,6 +6,10 @@ export const INSTALL_MANIFEST_URL = new URL(
   "./live-translator-installer/install-manifest.json",
   import.meta.url,
 );
+export const INSTALL_VERSION_URL = new URL(
+  `./live-translator-installer/${VERSION_FILE_NAME}`,
+  import.meta.url,
+);
 export const CONFIG_FILE_MAP = Object.freeze({
   settings: "settings.json",
   translator: "translator.json",
@@ -100,7 +104,7 @@ function normalizeInstallManifest(manifest, manifestUrl) {
   };
 }
 
-export async function loadVersionInfo(url = new URL("./version.json", import.meta.url)) {
+export async function loadVersionInfo(url = INSTALL_VERSION_URL) {
   try {
     const response = await fetch(url, { cache: "no-store" });
     if (!response.ok) {
@@ -650,7 +654,7 @@ async function fetchInstallerBundle(manifest, baseUrl, t) {
   };
   const version = {
     name: VERSION_FILE_NAME,
-    bytes: await fetchAssetBytes(new URL(`./${VERSION_FILE_NAME}`, baseUrl), t),
+    bytes: await fetchAssetBytes(new URL(VERSION_FILE_NAME, bundleUrl), t),
   };
 
   const supportFiles = await Promise.all(

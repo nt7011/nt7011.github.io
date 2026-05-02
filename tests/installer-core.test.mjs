@@ -125,12 +125,12 @@ test("loadVersionInfo returns the bundled version when version.json is present",
   globalThis.fetch = async (url, options) => {
     assert.equal(options?.cache, "no-store");
     return createFetchResponse({
-      "/version.json": JSON.stringify({ version: "1.12" }),
+      "/live-translator-installer/version.json": JSON.stringify({ version: "1.12" }),
     }, url);
   };
 
   try {
-    const version = await loadVersionInfo("https://example.test/version.json");
+    const version = await loadVersionInfo("https://example.test/live-translator-installer/version.json");
     assert.equal(version, "1.12");
   } finally {
     globalThis.fetch = originalFetch;
@@ -142,7 +142,7 @@ test("loadVersionInfo returns null when version.json is missing", async () => {
   globalThis.fetch = async (url) => createFetchResponse({}, url);
 
   try {
-    const version = await loadVersionInfo("https://example.test/version.json");
+    const version = await loadVersionInfo("https://example.test/live-translator-installer/version.json");
     assert.equal(version, null);
   } finally {
     globalThis.fetch = originalFetch;
@@ -215,8 +215,8 @@ test("installGame overwrites existing config files during reinstall", async () =
   const defaultTranslator = '{\n    "provider": "local"\n}\n';
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => createFetchResponse({
-    "/version.json": JSON.stringify({ version: "2.4" }),
     "/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
+    "/live-translator-installer/version.json": JSON.stringify({ version: "2.4" }),
     "/live-translator-installer/settings.json": defaultSettings,
     "/live-translator-installer/translator.json": defaultTranslator,
   }, url);
@@ -257,8 +257,8 @@ test("installGame copies release settings when development settings are absent",
 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => createFetchResponse({
-    "/version.json": JSON.stringify({ version: "2.4" }),
     "/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
+    "/live-translator-installer/version.json": JSON.stringify({ version: "2.4" }),
     "/live-translator-installer/config-templates/settings.release.json": releaseSettings,
     "/live-translator-installer/translator.json": "{}\n",
   }, url);
@@ -302,8 +302,8 @@ test("installGame copies nested support files", async () => {
 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => createFetchResponse({
-    "/version.json": JSON.stringify({ version: "2.4" }),
     "/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
+    "/live-translator-installer/version.json": JSON.stringify({ version: "2.4" }),
     "/live-translator-installer/settings.json": "{}\n",
     "/live-translator-installer/translator.json": "{}\n",
     "/live-translator-installer/precacher/precacher.js": 'console.log("precacher");\n',
@@ -384,8 +384,8 @@ test("installGame removes obsolete files while preserving optional assets", asyn
 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => createFetchResponse({
-    "/version.json": JSON.stringify({ version: "2.4" }),
     "/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
+    "/live-translator-installer/version.json": JSON.stringify({ version: "2.4" }),
     "/live-translator-installer/settings.json": "{\"settings\":true}\n",
     "/live-translator-installer/translator.json": "{\"provider\":\"local\"}\n",
     "/live-translator-installer/precacher/app.js": "new app\n",
@@ -458,6 +458,7 @@ test("install-manifest.json references files present in the copied support bundl
   ]);
 
   await readFile(path.join(bundleDirectory, manifest.loader));
+  await readFile(path.join(bundleDirectory, "version.json"));
   await readFile(path.join(bundleDirectory, manifest.install.settings.releaseSource));
 
   for (const file of manifest.install.files) {

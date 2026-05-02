@@ -1,6 +1,7 @@
 import {
   ensureReadWritePermission,
   INSTALL_MANIFEST_URL,
+  INSTALL_VERSION_URL,
   inspectGameDirectory,
   installGame,
   isVersionOutdated,
@@ -268,7 +269,7 @@ function applyDocumentTranslations() {
 }
 
 async function initialize() {
-  state.translatorVersion = await loadVersionInfo(new URL("./version.json", import.meta.url));
+  state.translatorVersion = await loadVersionInfo(INSTALL_VERSION_URL);
   await initializeDllHashCatalog();
 
   if (!supportsInstallation()) {
