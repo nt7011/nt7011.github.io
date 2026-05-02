@@ -506,14 +506,18 @@ export async function installGame(rootHandle, manifest, options = {}) {
     t,
   });
 
-  const versionFileHandle = await supportDirHandle.getFileHandle(bundle.version.name, {
-    create: true,
-  });
-  await writeBytes(versionFileHandle, bundle.version.bytes);
-  log(t("core.copiedVersionFile", {
-    fileName: bundle.version.name,
-    path: `${inspection.pluginsDirPath}/${manifest.supportDirectory}`,
-  }), "success");
+  let versionFilesCopied = 0;
+  if (bundle.version) {
+    const versionFileHandle = await supportDirHandle.getFileHandle(bundle.version.name, {
+      create: true,
+    });
+    await writeBytes(versionFileHandle, bundle.version.bytes);
+    versionFilesCopied = 1;
+    log(t("core.copiedVersionFile", {
+      fileName: bundle.version.name,
+      path: `${inspection.pluginsDirPath}/${manifest.supportDirectory}`,
+    }), "success");
+  }
 
   const pluginsData = await readTextFile(inspection.pluginsFileHandle);
   let pluginEntryAdded = false;
@@ -546,7 +550,7 @@ export async function installGame(rootHandle, manifest, options = {}) {
   return {
     packageUpdates,
     pluginEntryAdded,
-    filesCopied: 2 + supportFilesCopied,
+    filesCopied: 1 + versionFilesCopied + supportFilesCopied,
     supportDirectory: `${inspection.pluginsDirPath}/${manifest.supportDirectory}`,
   };
 }
@@ -652,10 +656,13 @@ async function fetchInstallerBundle(manifest, baseUrl, t) {
     name: manifest.loaderFile,
     bytes: await fetchAssetBytes(new URL(manifest.loaderFile, bundleUrl), t),
   };
-  const version = {
-    name: VERSION_FILE_NAME,
-    bytes: await fetchAssetBytes(new URL(VERSION_FILE_NAME, bundleUrl), t),
-  };
+  const versionBytes = await fetchOptionalAssetBytes(new URL(VERSION_FILE_NAME, bundleUrl));
+  const version = versionBytes
+    ? {
+        name: VERSION_FILE_NAME,
+        bytes: versionBytes,
+      }
+    : null;
 
   const supportFiles = await Promise.all(
     manifest.install.files.map(async (name) => {
@@ -727,6 +734,19 @@ async function fetchAssetBytes(url, t) {
   }
 
   return new Uint8Array(await response.arrayBuffer());
+}
+
+async function fetchOptionalAssetBytes(url) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      return null;
+    }
+
+    return new Uint8Array(await response.arrayBuffer());
+  } catch {
+    return null;
+  }
 }
 
 async function fetchAssetText(url, t) {

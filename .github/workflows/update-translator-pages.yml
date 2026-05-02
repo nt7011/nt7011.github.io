@@ -40,8 +40,12 @@ jobs:
           rm -rf live-translator-installer
           cp -R _upstream/live-translator-installer ./live-translator-installer
           rm -f version.json
-          if [ -f _upstream/version.json ]; then
-            cp _upstream/version.json ./version.json
+          if [ ! -f live-translator-installer/version.json ]; then
+            if [ -f _upstream/version.json ]; then
+              cp _upstream/version.json ./live-translator-installer/version.json
+            else
+              echo "::warning::Missing version.json in _upstream/live-translator-installer and _upstream."
+            fi
           fi
           rm -rf _upstream
 

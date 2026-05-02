@@ -278,6 +278,42 @@ test("installGame copies release settings when development settings are absent",
   );
 });
 
+test("installGame continues when optional version data is absent", async () => {
+  const rootHandle = createFakeDirectory("Game");
+  const jsHandle = rootHandle.addDirectory("js");
+  const pluginsHandle = jsHandle.addDirectory("plugins");
+
+  rootHandle.setFileText("package.json", '{"name":"Game"}\n');
+  jsHandle.setFileText("plugins.js", "[]\n");
+
+  const manifest = createTestManifest();
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => createFetchResponse({
+    "/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
+    "/live-translator-installer/settings.json": "{}\n",
+    "/live-translator-installer/translator.json": "{}\n",
+  }, url);
+
+  let result;
+  try {
+    result = await installGame(rootHandle, manifest, {
+      baseUrl: "https://example.test/app.mjs",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  const supportHandle = pluginsHandle.getDirectory("live-translator");
+  assert.equal(supportHandle.readFileText("settings.json"), "{}\n");
+  assert.equal(supportHandle.readFileText("translator.json"), "{}\n");
+  assert.throws(
+    () => supportHandle.readFileText("version.json"),
+    /Missing fake file: version\.json/,
+  );
+  assert.equal(result.filesCopied, manifest.install.files.length + 2);
+});
+
 test("installGame copies nested support files", async () => {
   const rootHandle = createFakeDirectory("Game");
   const jsHandle = rootHandle.addDirectory("js");
@@ -458,7 +494,6 @@ test("install-manifest.json references files present in the copied support bundl
   ]);
 
   await readFile(path.join(bundleDirectory, manifest.loader));
-  await readFile(path.join(bundleDirectory, "version.json"));
   await readFile(path.join(bundleDirectory, manifest.install.settings.releaseSource));
 
   for (const file of manifest.install.files) {
