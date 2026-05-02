@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -10,12 +10,46 @@ import {
   installGame,
   isVersionOutdated,
   loadInstalledConfigs,
+  loadManifest,
   loadVersionInfo,
   patchEmptyPackageName,
 } from "../installer-core.mjs";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(currentDirectory, "..");
+const testBundleUrl = "https://example.test/live-translator-installer/";
+
+function createTestManifest(overrides = {}) {
+  const install = overrides.install ?? {};
+  const runtime = overrides.runtime ?? {};
+
+  return {
+    schemaVersion: 2,
+    supportDirectory: "live-translator",
+    loader: "live-translator-loader.js",
+    loaderFile: "live-translator-loader.js",
+    pluginEntry: '{"name":"live-translator-loader","status":true,"description":"Entry point","parameters":{}},',
+    bundleUrl: testBundleUrl,
+    ...overrides,
+    install: {
+      files: ["translator.json"],
+      obsolete: [],
+      settings: {
+        developmentSource: "settings.json",
+        releaseSource: "config-templates/settings.release.json",
+        destination: "settings.json",
+      },
+      ...install,
+    },
+    runtime: {
+      requiredAssets: ["translator.json", "settings.json"],
+      optionalAssets: ["precacher/precache.json"],
+      loaderHelpers: [],
+      scriptLoadOrder: [],
+      ...runtime,
+    },
+  };
+}
 
 test("patchEmptyPackageName only updates empty name fields", () => {
   const changed = patchEmptyPackageName('{"name":"","window":{"title":"Demo"}}');
@@ -51,7 +85,9 @@ test("getMissingConfigFields reports missing leaf paths from bundled defaults", 
         },
         gameMessage: {
           textScale: 100,
+          originAwareLineBreaks: false,
         },
+        textScaleOthers: 100,
       },
       translator: {
         provider: "local",
@@ -78,6 +114,8 @@ test("getMissingConfigFields reports missing leaf paths from bundled defaults", 
   assert.deepEqual(missingFields, [
     "settings.json:translation.maxOutputTokens",
     "settings.json:gameMessage.textScale",
+    "settings.json:gameMessage.originAwareLineBreaks",
+    "settings.json:textScaleOthers",
     "translator.json:settings.deepl.apiKey",
   ]);
 });
@@ -87,12 +125,12 @@ test("loadVersionInfo returns the bundled version when version.json is present",
   globalThis.fetch = async (url, options) => {
     assert.equal(options?.cache, "no-store");
     return createFetchResponse({
-      "/version.json": JSON.stringify({ version: "1.12" }),
+      "/live-translator-installer/version.json": JSON.stringify({ version: "1.12" }),
     }, url);
   };
 
   try {
-    const version = await loadVersionInfo("https://example.test/version.json");
+    const version = await loadVersionInfo("https://example.test/live-translator-installer/version.json");
     assert.equal(version, "1.12");
   } finally {
     globalThis.fetch = originalFetch;
@@ -104,8 +142,47 @@ test("loadVersionInfo returns null when version.json is missing", async () => {
   globalThis.fetch = async (url) => createFetchResponse({}, url);
 
   try {
-    const version = await loadVersionInfo("https://example.test/version.json");
+    const version = await loadVersionInfo("https://example.test/live-translator-installer/version.json");
     assert.equal(version, null);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("loadManifest normalizes the bundle install manifest schema", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => createFetchResponse({
+    "/live-translator-installer/install-manifest.json": JSON.stringify({
+      schemaVersion: 2,
+      supportDirectory: "live-translator",
+      loader: "live-translator-loader.js",
+      install: {
+        files: ["translator.json", "runtime/paths.js"],
+        obsolete: ["hooks.js"],
+        settings: {
+          developmentSource: "settings.json",
+          releaseSource: "config-templates/settings.release.json",
+          destination: "settings.json",
+        },
+      },
+      runtime: {
+        loaderHelpers: ["loader/path-resolver.js"],
+        requiredAssets: ["translator.json", "settings.json"],
+        optionalAssets: ["precacher/precache.json"],
+        scriptLoadOrder: ["logger.js", "config.js"],
+      },
+    }),
+  }, url);
+
+  try {
+    const manifest = await loadManifest(
+      "https://example.test/live-translator-installer/install-manifest.json",
+    );
+
+    assert.equal(manifest.loaderFile, "live-translator-loader.js");
+    assert.equal(manifest.bundleUrl, "https://example.test/live-translator-installer/");
+    assert.deepEqual(manifest.install.files, ["translator.json", "runtime/paths.js"]);
+    assert.deepEqual(manifest.runtime.optionalAssets, ["precacher/precache.json"]);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -132,20 +209,14 @@ test("installGame overwrites existing config files during reinstall", async () =
   supportHandle.setFileText("settings.json", '{ "gameMessage": {} }\n');
   supportHandle.setFileText("translator.json", '{ "provider": "deepl" }\n');
 
-  const manifest = {
-    bundleDirectory: "live-translator-installer",
-    loaderFile: "live-translator-loader.js",
-    supportDirectory: "live-translator",
-    supportFiles: ["settings.json", "translator.json"],
-    pluginEntry: '{"name":"live-translator-loader","status":true,"description":"Entry point","parameters":{}},',
-  };
+  const manifest = createTestManifest();
 
   const defaultSettings = '{\n    "translation": {\n        "maxOutputTokens": 512\n    },\n    "gameMessage": {\n        "textScale": 100\n    }\n}\n';
   const defaultTranslator = '{\n    "provider": "local"\n}\n';
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => createFetchResponse({
-    "/version.json": JSON.stringify({ version: "2.4" }),
     "/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
+    "/live-translator-installer/version.json": JSON.stringify({ version: "2.4" }),
     "/live-translator-installer/settings.json": defaultSettings,
     "/live-translator-installer/translator.json": defaultTranslator,
   }, url);
@@ -173,6 +244,40 @@ test("installGame overwrites existing config files during reinstall", async () =
   );
 });
 
+test("installGame copies release settings when development settings are absent", async () => {
+  const rootHandle = createFakeDirectory("Game");
+  const jsHandle = rootHandle.addDirectory("js");
+  const pluginsHandle = jsHandle.addDirectory("plugins");
+
+  rootHandle.setFileText("package.json", '{"name":"Game"}\n');
+  jsHandle.setFileText("plugins.js", "[]\n");
+
+  const manifest = createTestManifest();
+  const releaseSettings = '{\n    "debug": {\n        "level": "warn"\n    },\n    "translation": {\n        "maxOutputTokens": 512\n    },\n    "gameMessage": {\n        "textScale": 100,\n        "originAwareLineBreaks": false\n    },\n    "textScaleOthers": 100\n}\n';
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => createFetchResponse({
+    "/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
+    "/live-translator-installer/version.json": JSON.stringify({ version: "2.4" }),
+    "/live-translator-installer/config-templates/settings.release.json": releaseSettings,
+    "/live-translator-installer/translator.json": "{}\n",
+  }, url);
+
+  try {
+    await installGame(rootHandle, manifest, {
+      baseUrl: "https://example.test/app.mjs",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  const supportHandle = pluginsHandle.getDirectory("live-translator");
+  assert.equal(
+    supportHandle.readFileText("settings.json"),
+    releaseSettings,
+  );
+});
+
 test("installGame copies nested support files", async () => {
   const rootHandle = createFakeDirectory("Game");
   const jsHandle = rootHandle.addDirectory("js");
@@ -181,27 +286,24 @@ test("installGame copies nested support files", async () => {
   rootHandle.setFileText("package.json", '{"name":"Game"}\n');
   jsHandle.setFileText("plugins.js", "[]\n");
 
-  const manifest = {
-    bundleDirectory: "live-translator-installer",
-    loaderFile: "live-translator-loader.js",
-    supportDirectory: "live-translator",
-    supportFiles: [
-      "settings.json",
-      "translator.json",
-      "precacher/precacher.js",
-      "precacher/pretranslator.js",
-      "precacher-ui/app.js",
-      "precacher-ui/index.html",
-      "precacher-ui/style.css",
-      "precacher-ui-launcher.js",
-    ],
-    pluginEntry: '{"name":"live-translator-loader","status":true,"description":"Entry point","parameters":{}},',
-  };
+  const manifest = createTestManifest({
+    install: {
+      files: [
+        "translator.json",
+        "precacher/precacher.js",
+        "precacher/pretranslator.js",
+        "precacher-ui/app.js",
+        "precacher-ui/index.html",
+        "precacher-ui/style.css",
+        "precacher-ui-launcher.js",
+      ],
+    },
+  });
 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => createFetchResponse({
-    "/version.json": JSON.stringify({ version: "2.4" }),
     "/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
+    "/live-translator-installer/version.json": JSON.stringify({ version: "2.4" }),
     "/live-translator-installer/settings.json": "{}\n",
     "/live-translator-installer/translator.json": "{}\n",
     "/live-translator-installer/precacher/precacher.js": 'console.log("precacher");\n',
@@ -246,7 +348,70 @@ test("installGame copies nested support files", async () => {
     supportHandle.readFileText("precacher-ui-launcher.js"),
     'console.log("launcher");\n',
   );
-  assert.equal(result.filesCopied, manifest.supportFiles.length + 2);
+  assert.equal(result.filesCopied, manifest.install.files.length + 3);
+});
+
+test("installGame removes obsolete files while preserving optional assets", async () => {
+  const rootHandle = createFakeDirectory("Game");
+  const jsHandle = rootHandle.addDirectory("js");
+  const pluginsHandle = jsHandle.addDirectory("plugins");
+  const supportHandle = pluginsHandle.addDirectory("live-translator");
+  const oldPrecacherUiHandle = supportHandle.addDirectory("precacher-ui");
+  const precacherHandle = supportHandle.addDirectory("precacher");
+
+  rootHandle.setFileText("package.json", '{"name":"Game"}\n');
+  jsHandle.setFileText("plugins.js", "[]\n");
+  supportHandle.setFileText("settings.json", "{}\n");
+  supportHandle.setFileText("translator.json", "{}\n");
+  oldPrecacherUiHandle.setFileText("app.js", "old ui\n");
+  precacherHandle.setFileText("precache.json", "{\"keep\":true}\n");
+
+  const manifest = createTestManifest({
+    install: {
+      files: [
+        "translator.json",
+        "precacher/app.js",
+      ],
+      obsolete: [
+        "precacher-ui/app.js",
+        "precacher/precache.json",
+      ],
+    },
+    runtime: {
+      optionalAssets: ["precacher/precache.json"],
+    },
+  });
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => createFetchResponse({
+    "/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
+    "/live-translator-installer/version.json": JSON.stringify({ version: "2.4" }),
+    "/live-translator-installer/settings.json": "{\"settings\":true}\n",
+    "/live-translator-installer/translator.json": "{\"provider\":\"local\"}\n",
+    "/live-translator-installer/precacher/app.js": "new app\n",
+  }, url);
+
+  try {
+    await installGame(rootHandle, manifest, {
+      baseUrl: "https://example.test/app.mjs",
+      overwriteExistingConfigs: true,
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.throws(
+    () => supportHandle.readFileTextAtPath("precacher-ui/app.js"),
+    /Missing fake file/,
+  );
+  assert.equal(
+    supportHandle.readFileTextAtPath("precacher/precache.json"),
+    "{\"keep\":true}\n",
+  );
+  assert.equal(
+    supportHandle.readFileTextAtPath("precacher/app.js"),
+    "new app\n",
+  );
 });
 
 test("loadInstalledConfigs reports the installed version file", async () => {
@@ -260,13 +425,7 @@ test("loadInstalledConfigs reports the installed version file", async () => {
   supportHandle.setFileText("translator.json", "{}\n");
   supportHandle.setFileText("version.json", JSON.stringify({ version: "2.3" }));
 
-  const manifest = {
-    bundleDirectory: "live-translator-installer",
-    loaderFile: "live-translator-loader.js",
-    supportDirectory: "live-translator",
-    supportFiles: ["settings.json", "translator.json"],
-    pluginEntry: '{"name":"live-translator-loader","status":true,"description":"Entry point","parameters":{}},',
-  };
+  const manifest = createTestManifest();
 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => createFetchResponse({
@@ -287,38 +446,46 @@ test("loadInstalledConfigs reports the installed version file", async () => {
   }
 });
 
-test("installer-manifest.json tracks the copied support bundle", async () => {
-  const manifestPath = path.join(repoRoot, "installer-manifest.json");
+test("install-manifest.json references files present in the copied support bundle", async () => {
+  const bundleDirectory = path.join(repoRoot, "live-translator-installer");
+  const manifestPath = path.join(bundleDirectory, "install-manifest.json");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  const installFiles = new Set(manifest.install.files);
+  const obsoleteFiles = new Set(manifest.install.obsolete ?? []);
+  const producedFiles = new Set([
+    ...installFiles,
+    manifest.install.settings.destination,
+  ]);
 
-  const bundleDirectory = path.join(repoRoot, manifest.bundleDirectory);
-  const excludedFiles = new Set(["install", "installer.ps1", "installer.sh", manifest.loaderFile]);
-  const copiedFiles = (await listRelativeFiles(bundleDirectory))
-    .filter((name) => !excludedFiles.has(name))
-    .sort();
+  await readFile(path.join(bundleDirectory, manifest.loader));
+  await readFile(path.join(bundleDirectory, "version.json"));
+  await readFile(path.join(bundleDirectory, manifest.install.settings.releaseSource));
 
-  const manifestFiles = [...manifest.supportFiles].sort();
-  assert.deepEqual(manifestFiles, copiedFiles);
+  for (const file of manifest.install.files) {
+    await readFile(path.join(bundleDirectory, file));
+  }
+
+  assert.deepEqual(
+    manifest.runtime.loaderHelpers.filter((file) => !installFiles.has(file)),
+    [],
+  );
+  assert.deepEqual(
+    manifest.runtime.scriptLoadOrder.filter((file) => !installFiles.has(file)),
+    [],
+  );
+  assert.deepEqual(
+    manifest.runtime.requiredAssets.filter((file) => !producedFiles.has(file)),
+    [],
+  );
+  assert.deepEqual(
+    manifest.install.files.filter((file) => obsoleteFiles.has(file)),
+    [],
+  );
+  assert.deepEqual(
+    manifest.runtime.optionalAssets.filter((file) => obsoleteFiles.has(file)),
+    [],
+  );
 });
-
-async function listRelativeFiles(directory, prefix = "") {
-  const entries = await readdir(directory, { withFileTypes: true });
-  const files = await Promise.all(entries.map(async (entry) => {
-    const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
-
-    if (entry.isDirectory()) {
-      return listRelativeFiles(path.join(directory, entry.name), relativePath);
-    }
-
-    if (entry.isFile()) {
-      return [relativePath];
-    }
-
-    return [];
-  }));
-
-  return files.flat();
-}
 
 function createFetchResponse(assets, url) {
   const pathname = new URL(String(url)).pathname;
@@ -423,6 +590,18 @@ class FakeDirectoryHandle {
     if (options.create) {
       this.setFileText(name, "");
       return new FakeFileHandle(this, name);
+    }
+
+    throw createNotFoundError();
+  }
+
+  async removeEntry(name) {
+    if (this.files.delete(name)) {
+      return;
+    }
+
+    if (this.directories.delete(name)) {
+      return;
     }
 
     throw createNotFoundError();

@@ -1,5 +1,7 @@
 import {
   ensureReadWritePermission,
+  INSTALL_MANIFEST_URL,
+  INSTALL_VERSION_URL,
   inspectGameDirectory,
   installGame,
   isVersionOutdated,
@@ -60,6 +62,29 @@ const GAME_MESSAGE_TEXT_SCALE_FIELD = {
   max: 100,
   required: true,
   validationMessageKey: "error.gameMessageTextScaleRange",
+};
+
+const GAME_MESSAGE_ORIGIN_AWARE_LINE_BREAKS_FIELD = {
+  id: "gameMessage.originAwareLineBreaks",
+  path: ["gameMessage", "originAwareLineBreaks"],
+  inputKind: "checkbox",
+  label: "originAwareLineBreaks",
+  descriptionKey: "field.gameMessage.originAwareLineBreaks.description",
+  tooltipKey: "field.gameMessage.originAwareLineBreaks.tooltip",
+};
+
+const TEXT_SCALE_OTHERS_FIELD = {
+  id: "textScaleOthers",
+  path: ["textScaleOthers"],
+  inputKind: "number",
+  label: "textScaleOthers",
+  descriptionKey: "field.textScaleOthers.description",
+  tooltipKey: "field.textScaleOthers.tooltip",
+  integer: true,
+  min: 1,
+  max: 100,
+  required: true,
+  validationMessageKey: "error.textScaleOthersRange",
 };
 
 const LOCAL_TRANSLATOR_FIELDS = [
@@ -244,7 +269,7 @@ function applyDocumentTranslations() {
 }
 
 async function initialize() {
-  state.translatorVersion = await loadVersionInfo(new URL("./version.json", import.meta.url));
+  state.translatorVersion = await loadVersionInfo(INSTALL_VERSION_URL);
   await initializeDllHashCatalog();
 
   if (!supportsInstallation()) {
@@ -254,10 +279,10 @@ async function initialize() {
   }
 
   try {
-    state.manifest = await loadManifest(new URL("./installer-manifest.json", import.meta.url), { t });
+    state.manifest = await loadManifest(INSTALL_MANIFEST_URL, { t });
     pushLog(
       t("log.bundleLoaded", {
-        count: state.manifest.supportFiles.length + 2,
+        count: state.manifest.install.files.length + 3,
       }),
       "info",
     );
@@ -1276,7 +1301,40 @@ function renderSettingsConfig(container, config) {
   );
 
   gameMessageSection.append(gameMessageFieldGrid);
+
+  const gameMessageToggleGrid = document.createElement("div");
+  gameMessageToggleGrid.className = "config-toggle-grid";
+  gameMessageToggleGrid.append(
+    buildFieldInput(
+      "settings",
+      GAME_MESSAGE_ORIGIN_AWARE_LINE_BREAKS_FIELD,
+      getValueAtPath(config, GAME_MESSAGE_ORIGIN_AWARE_LINE_BREAKS_FIELD.path),
+    ),
+  );
+
+  gameMessageSection.append(gameMessageToggleGrid);
   container.append(gameMessageSection);
+
+  const otherTextSection = document.createElement("section");
+  otherTextSection.className = "config-group";
+
+  const otherTextHeading = document.createElement("h4");
+  otherTextHeading.className = "config-group-title";
+  otherTextHeading.textContent = t("config.section.otherText");
+  otherTextSection.append(otherTextHeading);
+
+  const otherTextFieldGrid = document.createElement("div");
+  otherTextFieldGrid.className = "config-field-grid";
+  otherTextFieldGrid.append(
+    buildFieldInput(
+      "settings",
+      TEXT_SCALE_OTHERS_FIELD,
+      getValueAtPath(config, TEXT_SCALE_OTHERS_FIELD.path),
+    ),
+  );
+
+  otherTextSection.append(otherTextFieldGrid);
+  container.append(otherTextSection);
 }
 
 function renderTranslatorConfig(container, config) {
@@ -1775,6 +1833,7 @@ function getSettingsConfigValidationError() {
   for (const field of [
     TRANSLATION_MAX_OUTPUT_TOKENS_FIELD,
     GAME_MESSAGE_TEXT_SCALE_FIELD,
+    TEXT_SCALE_OTHERS_FIELD,
   ]) {
     const value = getValueAtPath(state.configDraft.settings, field.path);
     if (typeof value !== "undefined" && !isFieldNumberValueValid(field, Number(value))) {

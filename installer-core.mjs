@@ -2,12 +2,21 @@ import { createTranslator } from "./i18n.mjs";
 
 export const LOADER_PLUGIN_NAME = "live-translator-loader";
 export const VERSION_FILE_NAME = "version.json";
+export const INSTALL_MANIFEST_URL = new URL(
+  "./live-translator-installer/install-manifest.json",
+  import.meta.url,
+);
+export const INSTALL_VERSION_URL = new URL(
+  `./live-translator-installer/${VERSION_FILE_NAME}`,
+  import.meta.url,
+);
 export const CONFIG_FILE_MAP = Object.freeze({
   settings: "settings.json",
   translator: "translator.json",
 });
 
 const CONFIG_FILE_NAMES = new Set(Object.values(CONFIG_FILE_MAP));
+const DEFAULT_PLUGIN_ENTRY = "{\"name\":\"live-translator-loader\",\"status\":true,\"description\":\"Entry point for the live translation system\",\"parameters\":{}},";
 const DEFAULT_T = createTranslator("en");
 
 export function patchEmptyPackageName(text) {
@@ -43,17 +52,59 @@ export function injectPluginEntry(text, entry, warningMessage = "Unable to injec
   };
 }
 
-export async function loadManifest(url = new URL("./installer-manifest.json", import.meta.url), options = {}) {
+export async function loadManifest(url = INSTALL_MANIFEST_URL, options = {}) {
   const t = getTranslator(options);
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(t("core.loadManifestFailed", { status: response.status }));
   }
 
-  return response.json();
+  return normalizeInstallManifest(await response.json(), url);
 }
 
-export async function loadVersionInfo(url = new URL("./version.json", import.meta.url)) {
+function normalizeInstallManifest(manifest, manifestUrl) {
+  if (!manifest || typeof manifest !== "object") {
+    throw new Error("install-manifest.json is invalid.");
+  }
+
+  const install = manifest.install && typeof manifest.install === "object"
+    ? manifest.install
+    : {};
+  const runtime = manifest.runtime && typeof manifest.runtime === "object"
+    ? manifest.runtime
+    : {};
+  const settings = install.settings && typeof install.settings === "object"
+    ? install.settings
+    : {};
+
+  return {
+    ...manifest,
+    loader: normalizeSupportFilePath(manifest.loader),
+    loaderFile: normalizeSupportFilePath(manifest.loader),
+    supportDirectory: normalizeSupportDirectoryName(manifest.supportDirectory),
+    pluginEntry: manifest.pluginEntry ?? DEFAULT_PLUGIN_ENTRY,
+    bundleUrl: new URL("./", manifestUrl).href,
+    install: {
+      ...install,
+      files: normalizeSupportFileList(install.files),
+      obsolete: normalizeSupportFileList(install.obsolete ?? []),
+      settings: {
+        developmentSource: normalizeSupportFilePath(settings.developmentSource),
+        releaseSource: normalizeSupportFilePath(settings.releaseSource),
+        destination: normalizeSupportFilePath(settings.destination),
+      },
+    },
+    runtime: {
+      ...runtime,
+      requiredAssets: normalizeSupportFileList(runtime.requiredAssets ?? []),
+      optionalAssets: normalizeSupportFileList(runtime.optionalAssets ?? []),
+      loaderHelpers: normalizeSupportFileList(runtime.loaderHelpers ?? []),
+      scriptLoadOrder: normalizeSupportFileList(runtime.scriptLoadOrder ?? []),
+    },
+  };
+}
+
+export async function loadVersionInfo(url = INSTALL_VERSION_URL) {
   try {
     const response = await fetch(url, { cache: "no-store" });
     if (!response.ok) {
@@ -434,31 +485,26 @@ export async function installGame(rootHandle, manifest, options = {}) {
 
   let supportFilesCopied = 0;
   for (const file of bundle.supportFiles) {
-    const existingSupportFileHandle = await tryGetFileHandleAtPath(supportDirHandle, file.name);
-    const rootConfigFile = isRootConfigFile(file.name);
-    const replacingExistingConfig = Boolean(
-      existingSupportFileHandle
-        && rootConfigFile
-        && overwriteExistingConfigs,
-    );
-
-    if (rootConfigFile && existingSupportFileHandle && !replacingExistingConfig) {
-      log(t("core.keptExistingSupportFile", {
-        fileName: file.name,
-        path: `${inspection.pluginsDirPath}/${manifest.supportDirectory}`,
-      }), "info");
-      continue;
-    }
-
-    const supportFileHandle = existingSupportFileHandle
-      ?? (await getFileHandleAtPath(supportDirHandle, file.name, { create: true }));
-    await writeBytes(supportFileHandle, file.bytes);
-    supportFilesCopied += 1;
-    log(t(replacingExistingConfig ? "core.replacedSupportFile" : "core.copiedSupportFile", {
-      fileName: file.name,
-      path: `${inspection.pluginsDirPath}/${manifest.supportDirectory}`,
-    }), "success");
+    supportFilesCopied += await writeSupportBundleFile(supportDirHandle, file, {
+      log,
+      overwriteExistingConfigs,
+      supportDirectoryPath: `${inspection.pluginsDirPath}/${manifest.supportDirectory}`,
+      t,
+    });
   }
+
+  supportFilesCopied += await writeSupportBundleFile(supportDirHandle, bundle.settings, {
+    log,
+    overwriteExistingConfigs,
+    supportDirectoryPath: `${inspection.pluginsDirPath}/${manifest.supportDirectory}`,
+    t,
+  });
+
+  await removeObsoleteSupportPaths(supportDirHandle, manifest, {
+    log,
+    supportDirectoryPath: `${inspection.pluginsDirPath}/${manifest.supportDirectory}`,
+    t,
+  });
 
   const versionFileHandle = await supportDirHandle.getFileHandle(bundle.version.name, {
     create: true,
@@ -539,46 +585,104 @@ export async function saveInstalledConfigs(rootHandle, manifest, configs, option
   };
 }
 
+async function writeSupportBundleFile(supportDirHandle, file, options = {}) {
+  const {
+    log = () => {},
+    overwriteExistingConfigs = false,
+    supportDirectoryPath,
+    t,
+  } = options;
+  const existingSupportFileHandle = await tryGetFileHandleAtPath(supportDirHandle, file.name);
+  const rootConfigFile = isRootConfigFile(file.name);
+  const replacingExistingConfig = Boolean(
+    existingSupportFileHandle
+      && rootConfigFile
+      && overwriteExistingConfigs,
+  );
+
+  if (rootConfigFile && existingSupportFileHandle && !replacingExistingConfig) {
+    log(t("core.keptExistingSupportFile", {
+      fileName: file.name,
+      path: supportDirectoryPath,
+    }), "info");
+    return 0;
+  }
+
+  const supportFileHandle = existingSupportFileHandle
+    ?? (await getFileHandleAtPath(supportDirHandle, file.name, { create: true }));
+  await writeBytes(supportFileHandle, file.bytes);
+  log(t(replacingExistingConfig ? "core.replacedSupportFile" : "core.copiedSupportFile", {
+    fileName: file.name,
+    path: supportDirectoryPath,
+  }), "success");
+  return 1;
+}
+
+async function removeObsoleteSupportPaths(supportDirHandle, manifest, options = {}) {
+  const {
+    log = () => {},
+    supportDirectoryPath,
+    t,
+  } = options;
+  const obsoletePaths = manifest.install?.obsolete ?? [];
+  const protectedPaths = new Set(manifest.runtime?.optionalAssets ?? []);
+
+  for (const obsoletePath of obsoletePaths) {
+    if (isProtectedSupportPath(obsoletePath, protectedPaths)) {
+      log(t("core.skippedProtectedObsoletePath", {
+        fileName: obsoletePath,
+        path: supportDirectoryPath,
+      }), "info");
+      continue;
+    }
+
+    const removed = await removeEntryAtPath(supportDirHandle, obsoletePath);
+    if (removed) {
+      log(t("core.removedObsoleteSupportPath", {
+        fileName: obsoletePath,
+        path: supportDirectoryPath,
+      }), "success");
+    }
+  }
+}
+
 async function fetchInstallerBundle(manifest, baseUrl, t) {
-  const bundleDirectory = manifest.bundleDirectory.replace(/\/+$/, "");
+  const bundleUrl = getBundleUrl(manifest, baseUrl);
   const loader = {
     name: manifest.loaderFile,
-    bytes: await fetchAssetBytes(new URL(`${bundleDirectory}/${manifest.loaderFile}`, baseUrl), t),
+    bytes: await fetchAssetBytes(new URL(manifest.loaderFile, bundleUrl), t),
   };
   const version = {
     name: VERSION_FILE_NAME,
-    bytes: await fetchAssetBytes(new URL(`./${VERSION_FILE_NAME}`, baseUrl), t),
+    bytes: await fetchAssetBytes(new URL(VERSION_FILE_NAME, bundleUrl), t),
   };
 
   const supportFiles = await Promise.all(
-    manifest.supportFiles.map(async (name) => {
+    manifest.install.files.map(async (name) => {
       const normalizedName = normalizeSupportFilePath(name);
       return {
         name: normalizedName,
-        bytes: await fetchAssetBytes(new URL(`${bundleDirectory}/${normalizedName}`, baseUrl), t),
+        bytes: await fetchAssetBytes(new URL(normalizedName, bundleUrl), t),
       };
     }),
   );
+  const settings = await fetchSettingsBundleFile(manifest, bundleUrl, t);
 
-  return { loader, supportFiles, version };
+  return { loader, settings, supportFiles, version };
 }
 
 async function loadBundledDefaultConfigs(manifest, options = {}) {
   const baseUrl = options.baseUrl ?? import.meta.url;
   const t = getTranslator(options);
-  const bundleDirectory = manifest.bundleDirectory.replace(/\/+$/, "");
+  const bundleUrl = getBundleUrl(manifest, baseUrl);
   const defaults = {};
 
   for (const [configKey, fileName] of Object.entries(CONFIG_FILE_MAP)) {
-    const response = await fetch(new URL(`${bundleDirectory}/${fileName}`, baseUrl));
-    if (!response.ok) {
-      throw new Error(t("core.fetchAssetFailed", {
-        path: `/${bundleDirectory}/${fileName}`,
-        status: response.status,
-      }));
-    }
+    const text = configKey === "settings"
+      ? await fetchSettingsBundleText(manifest, bundleUrl, t)
+      : await fetchAssetText(new URL(fileName, bundleUrl), t);
 
-    defaults[configKey] = JSON.parse(await response.text());
+    defaults[configKey] = JSON.parse(text);
   }
 
   return defaults;
@@ -625,6 +729,68 @@ async function fetchAssetBytes(url, t) {
   return new Uint8Array(await response.arrayBuffer());
 }
 
+async function fetchAssetText(url, t) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(t("core.fetchAssetFailed", {
+      path: url.pathname,
+      status: response.status,
+    }));
+  }
+
+  return response.text();
+}
+
+async function fetchSettingsBundleFile(manifest, bundleUrl, t) {
+  const settings = manifest.install.settings;
+  const source = await fetchSettingsSource(settings, bundleUrl, t);
+
+  return {
+    name: settings.destination,
+    bytes: source.bytes,
+  };
+}
+
+async function fetchSettingsBundleText(manifest, bundleUrl, t) {
+  const source = await fetchSettingsSource(manifest.install.settings, bundleUrl, t);
+  return source.text;
+}
+
+async function fetchSettingsSource(settings, bundleUrl, t) {
+  const developmentUrl = new URL(settings.developmentSource, bundleUrl);
+  const developmentResponse = await fetch(developmentUrl);
+  if (developmentResponse.ok) {
+    const bytes = new Uint8Array(await developmentResponse.arrayBuffer());
+    return {
+      bytes,
+      text: decodeTextBytes(bytes),
+    };
+  }
+
+  const releaseUrl = new URL(settings.releaseSource, bundleUrl);
+  const releaseResponse = await fetch(releaseUrl);
+  if (!releaseResponse.ok) {
+    throw new Error(t("core.fetchAssetFailed", {
+      path: releaseUrl.pathname,
+      status: releaseResponse.status,
+    }));
+  }
+
+  const bytes = new Uint8Array(await releaseResponse.arrayBuffer());
+  return {
+    bytes,
+    text: decodeTextBytes(bytes),
+  };
+}
+
+function getBundleUrl(manifest, baseUrl) {
+  if (manifest.bundleUrl) {
+    return new URL(manifest.bundleUrl);
+  }
+
+  return new URL("./live-translator-installer/", baseUrl);
+}
+
 async function readTextFile(fileHandle) {
   const file = await fileHandle.getFile();
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -636,6 +802,20 @@ async function readTextFile(fileHandle) {
   }
 
   return { bytes, text, hasBom };
+}
+
+function decodeTextBytes(bytes) {
+  const decoder = new TextDecoder("utf-8");
+  let text = decoder.decode(bytes);
+  if (bytes.length >= 3
+    && bytes[0] === 0xef
+    && bytes[1] === 0xbb
+    && bytes[2] === 0xbf
+    && text.charCodeAt(0) === 0xfeff) {
+    text = text.slice(1);
+  }
+
+  return text;
 }
 
 async function writeTextFile(fileHandle, text, hasBom) {
@@ -779,6 +959,28 @@ async function tryGetFileHandleAtPath(parentHandle, filePath) {
   return tryGetFileHandle(directoryHandle, segments[segments.length - 1]);
 }
 
+async function removeEntryAtPath(parentHandle, filePath) {
+  const segments = getSupportPathSegments(filePath);
+  let directoryHandle = parentHandle;
+
+  for (const directoryName of segments.slice(0, -1)) {
+    directoryHandle = await tryGetDirectoryHandle(directoryHandle, directoryName);
+    if (!directoryHandle) {
+      return false;
+    }
+  }
+
+  try {
+    await directoryHandle.removeEntry(segments[segments.length - 1], { recursive: true });
+    return true;
+  } catch (error) {
+    if (error?.name === "NotFoundError") {
+      return false;
+    }
+    throw error;
+  }
+}
+
 async function getFileHandleAtPath(parentHandle, filePath, options = {}) {
   const segments = getSupportPathSegments(filePath);
   let directoryHandle = parentHandle;
@@ -797,8 +999,35 @@ function isRootConfigFile(filePath) {
   return !/[\\/]/.test(filePath) && CONFIG_FILE_NAMES.has(filePath);
 }
 
+function isProtectedSupportPath(filePath, protectedPaths) {
+  for (const protectedPath of protectedPaths) {
+    if (protectedPath === filePath || protectedPath.startsWith(`${filePath}/`)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function getSupportPathSegments(filePath) {
   return normalizeSupportFilePath(filePath).split("/");
+}
+
+function normalizeSupportFileList(paths) {
+  if (!Array.isArray(paths)) {
+    return [];
+  }
+
+  return paths.map((filePath) => normalizeSupportFilePath(filePath));
+}
+
+function normalizeSupportDirectoryName(name) {
+  const normalized = normalizeSupportFilePath(name);
+  if (/[\\/]/.test(normalized)) {
+    throw new Error(`Invalid support directory in install manifest: ${name}`);
+  }
+
+  return normalized;
 }
 
 function normalizeSupportFilePath(filePath) {
