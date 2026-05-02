@@ -84,3 +84,16 @@ test("createTranslator includes reinstall save reminder localization", () => {
     "작업 필요: 지금 설정 저장을 클릭하세요. 디스크의 설정 파일이 처음부터 다시 복원되었습니다.",
   );
 });
+
+test("createTranslator includes new settings field descriptions", () => {
+  const en = createTranslator("en-US");
+
+  assert.equal(
+    en("field.textScaleOthers.description"),
+    "Resizes most texts other than Game Message. Accepted values: integers from 1 to 100.",
+  );
+  assert.equal(
+    en("field.gameMessage.originAwareLineBreaks.description"),
+    "Ignores plugin-defined line break insertions on Game_Message. Enable if Game Messages have weird line breaks, and disable if the game starts acting strangely.",
+  );
+});

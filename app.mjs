@@ -63,6 +63,29 @@ const GAME_MESSAGE_TEXT_SCALE_FIELD = {
   validationMessageKey: "error.gameMessageTextScaleRange",
 };
 
+const GAME_MESSAGE_ORIGIN_AWARE_LINE_BREAKS_FIELD = {
+  id: "gameMessage.originAwareLineBreaks",
+  path: ["gameMessage", "originAwareLineBreaks"],
+  inputKind: "checkbox",
+  label: "originAwareLineBreaks",
+  descriptionKey: "field.gameMessage.originAwareLineBreaks.description",
+  tooltipKey: "field.gameMessage.originAwareLineBreaks.tooltip",
+};
+
+const TEXT_SCALE_OTHERS_FIELD = {
+  id: "textScaleOthers",
+  path: ["textScaleOthers"],
+  inputKind: "number",
+  label: "textScaleOthers",
+  descriptionKey: "field.textScaleOthers.description",
+  tooltipKey: "field.textScaleOthers.tooltip",
+  integer: true,
+  min: 1,
+  max: 100,
+  required: true,
+  validationMessageKey: "error.textScaleOthersRange",
+};
+
 const LOCAL_TRANSLATOR_FIELDS = [
   {
     id: "settings.local.address",
@@ -1277,7 +1300,40 @@ function renderSettingsConfig(container, config) {
   );
 
   gameMessageSection.append(gameMessageFieldGrid);
+
+  const gameMessageToggleGrid = document.createElement("div");
+  gameMessageToggleGrid.className = "config-toggle-grid";
+  gameMessageToggleGrid.append(
+    buildFieldInput(
+      "settings",
+      GAME_MESSAGE_ORIGIN_AWARE_LINE_BREAKS_FIELD,
+      getValueAtPath(config, GAME_MESSAGE_ORIGIN_AWARE_LINE_BREAKS_FIELD.path),
+    ),
+  );
+
+  gameMessageSection.append(gameMessageToggleGrid);
   container.append(gameMessageSection);
+
+  const otherTextSection = document.createElement("section");
+  otherTextSection.className = "config-group";
+
+  const otherTextHeading = document.createElement("h4");
+  otherTextHeading.className = "config-group-title";
+  otherTextHeading.textContent = t("config.section.otherText");
+  otherTextSection.append(otherTextHeading);
+
+  const otherTextFieldGrid = document.createElement("div");
+  otherTextFieldGrid.className = "config-field-grid";
+  otherTextFieldGrid.append(
+    buildFieldInput(
+      "settings",
+      TEXT_SCALE_OTHERS_FIELD,
+      getValueAtPath(config, TEXT_SCALE_OTHERS_FIELD.path),
+    ),
+  );
+
+  otherTextSection.append(otherTextFieldGrid);
+  container.append(otherTextSection);
 }
 
 function renderTranslatorConfig(container, config) {
@@ -1776,6 +1832,7 @@ function getSettingsConfigValidationError() {
   for (const field of [
     TRANSLATION_MAX_OUTPUT_TOKENS_FIELD,
     GAME_MESSAGE_TEXT_SCALE_FIELD,
+    TEXT_SCALE_OTHERS_FIELD,
   ]) {
     const value = getValueAtPath(state.configDraft.settings, field.path);
     if (typeof value !== "undefined" && !isFieldNumberValueValid(field, Number(value))) {

@@ -85,7 +85,9 @@ test("getMissingConfigFields reports missing leaf paths from bundled defaults", 
         },
         gameMessage: {
           textScale: 100,
+          originAwareLineBreaks: false,
         },
+        textScaleOthers: 100,
       },
       translator: {
         provider: "local",
@@ -112,6 +114,8 @@ test("getMissingConfigFields reports missing leaf paths from bundled defaults", 
   assert.deepEqual(missingFields, [
     "settings.json:translation.maxOutputTokens",
     "settings.json:gameMessage.textScale",
+    "settings.json:gameMessage.originAwareLineBreaks",
+    "settings.json:textScaleOthers",
     "translator.json:settings.deepl.apiKey",
   ]);
 });
