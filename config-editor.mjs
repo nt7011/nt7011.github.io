@@ -6,8 +6,20 @@ export function configDraftsEqual(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-export function mergeConfigDefaults(defaultConfigs, preservedConfigs) {
-  return mergeConfigValue(defaultConfigs, preservedConfigs);
+export function mergeConfigDefaults(defaultConfigs, preservedConfigs, options = {}) {
+  const merged = mergeConfigValue(defaultConfigs, preservedConfigs);
+  const useDefaultForPaths = Array.isArray(options.useDefaultForPaths)
+    ? options.useDefaultForPaths
+    : [];
+
+  for (const path of useDefaultForPaths) {
+    const defaultValue = getValueAtPath(defaultConfigs, path);
+    if (typeof defaultValue !== "undefined") {
+      setValueAtPath(merged, path, cloneConfigValue(defaultValue));
+    }
+  }
+
+  return merged;
 }
 
 export function getValueAtPath(target, path) {

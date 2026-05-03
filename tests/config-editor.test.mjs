@@ -198,6 +198,40 @@ test("mergeConfigDefaults preserves old values while keeping restored default fi
   assert.equal(restoredDefaults.settings.translation.maxOutputTokens, 512);
 });
 
+test("mergeConfigDefaults can prefer selected restored defaults", () => {
+  const restoredDefaults = {
+    settings: {
+      checkUpdates: true,
+      translation: {
+        disableCjkFilter: false,
+        maxOutputTokens: 512,
+      },
+    },
+    translator: {
+      provider: "local",
+    },
+  };
+  const preservedDraft = {
+    settings: {
+      checkUpdates: false,
+      translation: {
+        disableCjkFilter: true,
+      },
+    },
+    translator: {
+      provider: "deepl",
+    },
+  };
+
+  const merged = mergeConfigDefaults(restoredDefaults, preservedDraft, {
+    useDefaultForPaths: [["settings", "checkUpdates"]],
+  });
+
+  assert.equal(merged.settings.checkUpdates, true);
+  assert.equal(merged.settings.translation.disableCjkFilter, true);
+  assert.equal(merged.translator.provider, "deepl");
+});
+
 test("validateNumberValue enforces integer and range constraints", () => {
   assert.equal(validateNumberValue(100, { integer: true, min: 1, max: 100 }), true);
   assert.equal(validateNumberValue(0, { integer: true, min: 1, max: 100 }), false);

@@ -48,6 +48,9 @@ const CHECK_UPDATES_FIELD = {
   descriptionKey: "field.checkUpdates.description",
   tooltipKey: "field.checkUpdates.tooltip",
 };
+const REINSTALL_DEFAULT_CONFIG_PATHS = [
+  ["settings", ...CHECK_UPDATES_FIELD.path],
+];
 
 const TRANSLATION_MAX_OUTPUT_TOKENS_FIELD = {
   id: "translation.maxOutputTokens",
@@ -720,7 +723,9 @@ function createConfigDraftFromSnapshot(snapshot, loadedConfigs, preservedConfigD
   }
 
   if (snapshot.editable && preservedConfigDraft) {
-    return mergeConfigDefaults(loadedConfigs, preservedConfigDraft);
+    return mergeConfigDefaults(loadedConfigs, preservedConfigDraft, {
+      useDefaultForPaths: REINSTALL_DEFAULT_CONFIG_PATHS,
+    });
   }
 
   return cloneConfigSet(loadedConfigs);
