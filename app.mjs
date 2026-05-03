@@ -13,9 +13,12 @@ import {
 import {
   cloneConfigSet,
   configDraftsEqual,
+  formatIgnoreTranslationRegexRules,
   getValueAtPath,
   mergeConfigDefaults,
+  normalizeIgnoreTranslationRegexInput,
   setValueAtPath,
+  validateIgnoreTranslationRegexValue,
   validateNumberValue,
 } from "./config-editor.mjs";
 import {
@@ -48,6 +51,15 @@ const TRANSLATION_MAX_OUTPUT_TOKENS_FIELD = {
   min: 1,
   required: true,
   validationMessageKey: "error.translationMaxOutputTokensRange",
+};
+
+const IGNORE_TRANSLATION_REGEX_FIELD = {
+  id: "ignoreTranslationRegex",
+  path: ["ignoreTranslationRegex"],
+  inputKind: "regex-list",
+  label: "ignoreTranslationRegex",
+  descriptionKey: "field.ignoreTranslationRegex.description",
+  tooltipKey: "field.ignoreTranslationRegex.tooltip",
 };
 
 const GAME_MESSAGE_TEXT_SCALE_FIELD = {
@@ -1280,6 +1292,8 @@ function renderSettingsConfig(container, config) {
   );
 
   section.append(translationFieldGrid);
+
+  section.append(buildIgnoreTranslationRegexEditor(config));
   container.append(section);
 
   const gameMessageSection = document.createElement("section");
@@ -1447,6 +1461,167 @@ function buildProviderToggle(config) {
   }
 
   return group;
+}
+
+function buildIgnoreTranslationRegexEditor(config) {
+  const currentValue = getValueAtPath(config, IGNORE_TRANSLATION_REGEX_FIELD.path);
+  const validationErrors = validateIgnoreTranslationRegexValue(currentValue);
+  const wrapper = document.createElement("div");
+  wrapper.className = "config-field config-regex-editor";
+  wrapper.classList.add(getFieldClassName(IGNORE_TRANSLATION_REGEX_FIELD));
+
+  const inputId = "settings-ignore-translation-regex";
+  const feedbackId = `${inputId}-feedback`;
+
+  const label = document.createElement("label");
+  label.className = "config-label";
+  label.setAttribute("for", inputId);
+  label.title = getFieldTooltipText(IGNORE_TRANSLATION_REGEX_FIELD);
+
+  const pathText = document.createElement("code");
+  pathText.textContent = IGNORE_TRANSLATION_REGEX_FIELD.label;
+  pathText.title = getFieldTooltipText(IGNORE_TRANSLATION_REGEX_FIELD);
+  label.append(pathText);
+  wrapper.append(label);
+
+  const textarea = document.createElement("textarea");
+  textarea.id = inputId;
+  textarea.rows = getIgnoreTranslationRegexTextareaRows(currentValue);
+  textarea.value = formatIgnoreTranslationRegexRules(currentValue);
+  textarea.placeholder = t("field.ignoreTranslationRegex.placeholder");
+  textarea.spellcheck = false;
+  textarea.autocomplete = "off";
+  textarea.disabled = !state.configEditable;
+  textarea.title = getFieldTooltipText(IGNORE_TRANSLATION_REGEX_FIELD);
+  textarea.setAttribute("aria-describedby", feedbackId);
+  textarea.setAttribute("autocapitalize", "none");
+  if (validationErrors.length > 0) {
+    textarea.setAttribute("aria-invalid", "true");
+  }
+  wrapper.append(textarea);
+
+  const feedback = document.createElement("div");
+  feedback.id = feedbackId;
+  feedback.className = "config-regex-feedback";
+  renderIgnoreTranslationRegexFeedback(
+    feedback,
+    validationErrors,
+    getIgnoreTranslationRegexRuleCount(currentValue),
+  );
+  wrapper.append(feedback);
+
+  const description = document.createElement("p");
+  description.className = "config-field-description";
+  description.textContent = t(IGNORE_TRANSLATION_REGEX_FIELD.descriptionKey);
+  wrapper.append(description);
+
+  textarea.addEventListener("input", () => {
+    const result = normalizeIgnoreTranslationRegexInput(textarea.value);
+    setValueAtPath(state.configDraft.settings, IGNORE_TRANSLATION_REGEX_FIELD.path, result.rules);
+
+    if (result.errors.length > 0) {
+      textarea.setAttribute("aria-invalid", "true");
+    } else {
+      textarea.removeAttribute("aria-invalid");
+    }
+
+    renderIgnoreTranslationRegexFeedback(feedback, result.errors, result.rules.length);
+    renderConfigStatus();
+    renderActionState();
+  });
+
+  return wrapper;
+}
+
+function renderIgnoreTranslationRegexFeedback(container, errors, ruleCount) {
+  container.textContent = "";
+
+  if (errors.length > 0) {
+    const list = document.createElement("ul");
+    list.className = "config-regex-error-list";
+
+    for (const error of errors.slice(0, 5)) {
+      const item = document.createElement("li");
+      item.textContent = getIgnoreTranslationRegexErrorMessage(error);
+      list.append(item);
+    }
+
+    container.append(list);
+
+    if (errors.length > 5) {
+      const overflow = document.createElement("p");
+      overflow.className = "config-field-error";
+      overflow.textContent = t("error.ignoreTranslationRegex.more", {
+        count: errors.length - 5,
+      });
+      container.append(overflow);
+    }
+    return;
+  }
+
+  const summary = document.createElement("p");
+  summary.className = "config-regex-summary";
+  summary.textContent = t("field.ignoreTranslationRegex.summary", { count: ruleCount });
+  container.append(summary);
+}
+
+function getIgnoreTranslationRegexConfigValidationError() {
+  const errors = validateIgnoreTranslationRegexValue(
+    getValueAtPath(state.configDraft.settings, IGNORE_TRANSLATION_REGEX_FIELD.path),
+  );
+  return errors.length > 0 ? getIgnoreTranslationRegexErrorMessage(errors[0]) : null;
+}
+
+function getIgnoreTranslationRegexErrorMessage(error) {
+  switch (error?.code) {
+    case "notArray":
+      return t("error.ignoreTranslationRegex.notArray");
+    case "notString":
+      return t("error.ignoreTranslationRegex.notString", {
+        line: error.line,
+      });
+    case "quoted":
+      return t("error.ignoreTranslationRegex.quoted", {
+        line: error.line,
+      });
+    case "unsupportedFlags":
+      return t("error.ignoreTranslationRegex.unsupportedFlags", {
+        flags: error.flags,
+        line: error.line,
+        unsupportedFlags: error.unsupportedFlags || error.flags,
+      });
+    case "invalid":
+      return t("error.ignoreTranslationRegex.invalid", {
+        line: error.line,
+        message: error.message,
+      });
+    case "empty":
+      return t("error.ignoreTranslationRegex.empty", {
+        line: error.line,
+      });
+    default:
+      return t("error.ignoreTranslationRegex.invalid", {
+        line: error?.line ?? "?",
+        message: error?.message ?? t("folder.unknown"),
+      });
+  }
+}
+
+function getIgnoreTranslationRegexRuleCount(value) {
+  if (!Array.isArray(value)) {
+    return 0;
+  }
+
+  return value.filter((rule) => typeof rule === "string" && rule.trim()).length;
+}
+
+function getIgnoreTranslationRegexTextareaRows(value) {
+  const text = formatIgnoreTranslationRegexRules(value);
+  if (!text) {
+    return 4;
+  }
+
+  return Math.min(10, Math.max(4, text.split(/\r\n|\n|\r/u).length + 1));
 }
 
 function buildFieldInput(configKey, field, currentValue) {
@@ -1843,6 +2018,11 @@ function getSettingsConfigValidationError() {
     if (field.required && typeof value === "undefined") {
       return getMissingFieldValidationMessage(field);
     }
+  }
+
+  const ignoreTranslationRegexValidationError = getIgnoreTranslationRegexConfigValidationError();
+  if (ignoreTranslationRegexValidationError) {
+    return ignoreTranslationRegexValidationError;
   }
 
   return null;

@@ -99,6 +99,113 @@ export function validateNumberValue(value, options = {}) {
   return true;
 }
 
+const IGNORE_TRANSLATION_REGEX_FLAG_ORDER = ["i", "m", "s", "u"];
+const IGNORE_TRANSLATION_REGEX_ALLOWED_FLAGS = new Set(IGNORE_TRANSLATION_REGEX_FLAG_ORDER);
+
+export function formatIgnoreTranslationRegexRules(value) {
+  if (Array.isArray(value)) {
+    return value.map((rule) => String(rule ?? "")).join("\n");
+  }
+
+  if (value === null || typeof value === "undefined") {
+    return "";
+  }
+
+  return String(value);
+}
+
+export function normalizeIgnoreTranslationRegexInput(input) {
+  const lines = String(input ?? "").split(/\r\n|\n|\r/u);
+  const rules = [];
+  const errors = [];
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const rule = String(lines[index] ?? "").trim();
+    if (!rule) {
+      continue;
+    }
+
+    rules.push(rule);
+    errors.push(...validateIgnoreTranslationRegexRule(rule, index + 1));
+  }
+
+  return {
+    errors,
+    rules,
+  };
+}
+
+export function validateIgnoreTranslationRegexValue(value) {
+  if (value === null || typeof value === "undefined" || value === "") {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    return [{ code: "notArray" }];
+  }
+
+  const errors = [];
+
+  value.forEach((rule, index) => {
+    if (typeof rule !== "string") {
+      errors.push({
+        code: "notString",
+        index,
+        line: index + 1,
+      });
+      return;
+    }
+
+    if (!rule.trim()) {
+      return;
+    }
+
+    errors.push(...validateIgnoreTranslationRegexRule(rule.trim(), index + 1));
+  });
+
+  return errors;
+}
+
+export function parseIgnoreTranslationRegexRule(rawRule) {
+  const value = String(rawRule || "").trim();
+  if (!value) {
+    return { flags: "", pattern: "", slashForm: false };
+  }
+
+  if (value.charAt(0) === "/") {
+    const lastSlash = value.lastIndexOf("/");
+    if (lastSlash > 0 && /^[A-Za-z]*$/u.test(value.slice(lastSlash + 1))) {
+      return {
+        flags: value.slice(lastSlash + 1),
+        pattern: value.slice(1, lastSlash),
+        slashForm: true,
+      };
+    }
+  }
+
+  return { flags: "", pattern: value, slashForm: false };
+}
+
+export function normalizeIgnoreTranslationRegexFlags(rawFlags) {
+  const seen = { u: true };
+  for (const flag of String(rawFlags || "")) {
+    if (!IGNORE_TRANSLATION_REGEX_ALLOWED_FLAGS.has(flag)) {
+      return {
+        error: true,
+        flags: "u",
+        unsupportedFlags: [...new Set(String(rawFlags || "").replace(/[imsu]/gu, ""))].join(""),
+      };
+    }
+    seen[flag] = true;
+  }
+
+  return {
+    error: false,
+    flags: IGNORE_TRANSLATION_REGEX_FLAG_ORDER.filter((flag) => seen[flag]).join(""),
+    unsupportedFlags: "",
+  };
+}
+
 function collectFields(value, absolutePath, relativePath) {
   if (isPrimitive(value)) {
     return [createField(absolutePath, value, relativePath)];
@@ -208,4 +315,57 @@ function mergeConfigValue(defaultValue, preservedValue) {
 
 function cloneConfigValue(value) {
   return typeof value === "undefined" ? undefined : cloneConfigSet(value);
+}
+
+function validateIgnoreTranslationRegexRule(rule, line) {
+  const errors = [];
+
+  if (hasMatchingOuterQuotes(rule)) {
+    errors.push({
+      code: "quoted",
+      line,
+    });
+    return errors;
+  }
+
+  const parsed = parseIgnoreTranslationRegexRule(rule);
+  if (!parsed.pattern) {
+    errors.push({
+      code: "empty",
+      line,
+    });
+    return errors;
+  }
+
+  const normalizedFlags = normalizeIgnoreTranslationRegexFlags(parsed.flags);
+  if (normalizedFlags.error) {
+    errors.push({
+      code: "unsupportedFlags",
+      flags: parsed.flags,
+      line,
+      unsupportedFlags: normalizedFlags.unsupportedFlags,
+    });
+    return errors;
+  }
+
+  try {
+    new RegExp(parsed.pattern, normalizedFlags.flags);
+  } catch (error) {
+    errors.push({
+      code: "invalid",
+      line,
+      message: error?.message ? String(error.message) : String(error || "invalid regex"),
+    });
+  }
+
+  return errors;
+}
+
+function hasMatchingOuterQuotes(value) {
+  if (value.length < 2) {
+    return false;
+  }
+
+  const first = value.charAt(0);
+  return (first === "\"" || first === "'") && value.charAt(value.length - 1) === first;
 }

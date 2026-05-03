@@ -5,9 +5,14 @@ import {
   buildConfigGroups,
   cloneConfigSet,
   configDraftsEqual,
+  formatIgnoreTranslationRegexRules,
   getValueAtPath,
   mergeConfigDefaults,
+  normalizeIgnoreTranslationRegexFlags,
+  normalizeIgnoreTranslationRegexInput,
+  parseIgnoreTranslationRegexRule,
   setValueAtPath,
+  validateIgnoreTranslationRegexValue,
   validateNumberValue,
 } from "../config-editor.mjs";
 
@@ -199,4 +204,98 @@ test("validateNumberValue enforces integer and range constraints", () => {
   assert.equal(validateNumberValue(101, { integer: true, min: 1, max: 100 }), false);
   assert.equal(validateNumberValue(50.5, { integer: true, min: 1, max: 100 }), false);
   assert.equal(validateNumberValue(50.5, { min: 1, max: 100 }), true);
+});
+
+test("normalizeIgnoreTranslationRegexInput trims blank lines and validates rules", () => {
+  const result = normalizeIgnoreTranslationRegexInput(`
+    ^skip$
+
+    /coords:\\s*\\d+/i
+  `);
+
+  assert.deepEqual(result.rules, [
+    "^skip$",
+    "/coords:\\s*\\d+/i",
+  ]);
+  assert.deepEqual(result.errors, []);
+});
+
+test("normalizeIgnoreTranslationRegexInput reports unsupported flags and invalid regex syntax", () => {
+  const result = normalizeIgnoreTranslationRegexInput(`
+    /skip/g
+    (
+  `);
+
+  assert.deepEqual(
+    result.errors.map((error) => ({
+      code: error.code,
+      line: error.line,
+    })),
+    [
+      { code: "unsupportedFlags", line: 2 },
+      { code: "invalid", line: 3 },
+    ],
+  );
+});
+
+test("normalizeIgnoreTranslationRegexInput blocks quote-wrapped regex lines", () => {
+  const result = normalizeIgnoreTranslationRegexInput(`
+    "^\\u5750\\u6807[^A-Za-z]+$"
+    '/menu/i'
+  `);
+
+  assert.deepEqual(result.rules, [
+    "\"^\\u5750\\u6807[^A-Za-z]+$\"",
+    "'/menu/i'",
+  ]);
+  assert.deepEqual(
+    result.errors.map((error) => ({
+      code: error.code,
+      line: error.line,
+    })),
+    [
+      { code: "quoted", line: 2 },
+      { code: "quoted", line: 3 },
+    ],
+  );
+});
+
+test("validateIgnoreTranslationRegexValue requires an array of regex strings", () => {
+  assert.deepEqual(validateIgnoreTranslationRegexValue(undefined), []);
+  assert.deepEqual(validateIgnoreTranslationRegexValue("skip").map((error) => error.code), ["notArray"]);
+  assert.deepEqual(validateIgnoreTranslationRegexValue(["^skip$", 123]).map((error) => error.code), ["notString"]);
+});
+
+test("normalizeIgnoreTranslationRegexInput does not impose rule count or length limits", () => {
+  const longRule = `^${"a".repeat(2000)}$`;
+  const manyRules = Array.from({ length: 150 }, (_, index) => `^rule${index}$`);
+  const result = normalizeIgnoreTranslationRegexInput([longRule, ...manyRules].join("\n"));
+
+  assert.equal(result.rules.length, 151);
+  assert.deepEqual(result.errors, []);
+});
+
+test("parseIgnoreTranslationRegexRule and normalizeIgnoreTranslationRegexFlags match translator syntax", () => {
+  assert.deepEqual(parseIgnoreTranslationRegexRule("/skip/i"), {
+    flags: "i",
+    pattern: "skip",
+    slashForm: true,
+  });
+  assert.deepEqual(parseIgnoreTranslationRegexRule("^skip$"), {
+    flags: "",
+    pattern: "^skip$",
+    slashForm: false,
+  });
+  assert.deepEqual(normalizeIgnoreTranslationRegexFlags("mi"), {
+    error: false,
+    flags: "imu",
+    unsupportedFlags: "",
+  });
+  assert.equal(normalizeIgnoreTranslationRegexFlags("g").error, true);
+});
+
+test("formatIgnoreTranslationRegexRules keeps the array editable as one rule per line", () => {
+  assert.equal(formatIgnoreTranslationRegexRules(["^skip$", "/coords/i"]), "^skip$\n/coords/i");
+  assert.equal(formatIgnoreTranslationRegexRules(undefined), "");
+  assert.equal(formatIgnoreTranslationRegexRules("legacy"), "legacy");
 });

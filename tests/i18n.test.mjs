@@ -87,6 +87,7 @@ test("createTranslator includes reinstall save reminder localization", () => {
 
 test("createTranslator includes new settings field descriptions", () => {
   const en = createTranslator("en-US");
+  const ko = createTranslator("ko-KR");
 
   assert.equal(
     en("field.textScaleOthers.description"),
@@ -95,5 +96,25 @@ test("createTranslator includes new settings field descriptions", () => {
   assert.equal(
     en("field.gameMessage.originAwareLineBreaks.description"),
     "Ignores plugin-defined line break insertions on Game_Message. Enable if Game Messages have weird line breaks, and disable if the game starts acting strangely.",
+  );
+  assert.equal(
+    en("field.ignoreTranslationRegex.description"),
+    "Skips translation when source text matches any rule. One regex per line; plain patterns and /pattern/i are accepted.",
+  );
+  assert.equal(
+    en("field.ignoreTranslationRegex.summary", { count: 0 }),
+    "0 ignore rules are active.",
+  );
+  assert.equal(
+    en("error.ignoreTranslationRegex.quoted", { line: 2 }),
+    "ignoreTranslationRegex line 2 has surrounding quotes. Remove the first and last quote characters.",
+  );
+  assert.equal(
+    ko("field.ignoreTranslationRegex.summary", { count: 3 }),
+    "3개의 무시 규칙이 활성화되어 있습니다.",
+  );
+  assert.equal(
+    ko("error.ignoreTranslationRegex.quoted", { line: 2 }),
+    "ignoreTranslationRegex 2번째 줄에 따옴표가 있습니다. 첫 번째와 마지막 따옴표를 제거하세요.",
   );
 });

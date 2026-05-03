@@ -563,8 +563,39 @@ button:disabled {
   outline-offset: 1px;
 }
 
-.config-field input[aria-invalid="true"] {
+.config-field input[aria-invalid="true"],
+.config-field textarea[aria-invalid="true"] {
   border-color: var(--error);
+}
+
+.config-regex-editor {
+  margin-top: 12px;
+}
+
+.config-regex-editor textarea {
+  min-height: 132px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.95rem;
+}
+
+.config-regex-feedback {
+  min-height: 1.3em;
+}
+
+.config-regex-summary {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.config-regex-error-list {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--error);
+  font-size: 0.95rem;
+}
+
+.config-regex-error-list li + li {
+  margin-top: 4px;
 }
 
 .package-list,
