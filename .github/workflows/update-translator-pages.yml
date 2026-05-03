@@ -47,6 +47,11 @@ jobs:
               echo "::warning::Missing version.json in _upstream/live-translator-installer and _upstream."
             fi
           fi
+          mkdir -p info
+          # Keep the checked-in unavailable fallback unless this publish has a real translator version.
+          if [ -f live-translator-installer/version.json ]; then
+            cp live-translator-installer/version.json ./info/translator-version.json
+          fi
           rm -rf _upstream
 
       - name: Copy cheat installer into the /cheats subpage
