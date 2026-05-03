@@ -40,6 +40,15 @@ const SETTINGS_FIELD = {
   tooltipKey: "field.translation.disableCjkFilter.tooltip",
 };
 
+const CHECK_UPDATES_FIELD = {
+  id: "checkUpdates",
+  path: ["checkUpdates"],
+  inputKind: "checkbox",
+  label: "checkUpdates",
+  descriptionKey: "field.checkUpdates.description",
+  tooltipKey: "field.checkUpdates.tooltip",
+};
+
 const TRANSLATION_MAX_OUTPUT_TOKENS_FIELD = {
   id: "translation.maxOutputTokens",
   path: ["translation", "maxOutputTokens"],
@@ -1349,6 +1358,27 @@ function renderSettingsConfig(container, config) {
 
   otherTextSection.append(otherTextFieldGrid);
   container.append(otherTextSection);
+
+  const updatesSection = document.createElement("section");
+  updatesSection.className = "config-group";
+
+  const updatesHeading = document.createElement("h4");
+  updatesHeading.className = "config-group-title";
+  updatesHeading.textContent = t("config.section.updates");
+  updatesSection.append(updatesHeading);
+
+  const updatesToggleGrid = document.createElement("div");
+  updatesToggleGrid.className = "config-toggle-grid";
+  updatesToggleGrid.append(
+    buildFieldInput(
+      "settings",
+      CHECK_UPDATES_FIELD,
+      getValueAtPath(config, CHECK_UPDATES_FIELD.path),
+    ),
+  );
+
+  updatesSection.append(updatesToggleGrid);
+  container.append(updatesSection);
 }
 
 function renderTranslatorConfig(container, config) {

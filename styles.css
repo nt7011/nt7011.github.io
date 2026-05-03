@@ -476,6 +476,11 @@ button:disabled {
   max-width: 34rem;
 }
 
+.config-field.checkbox-field.config-field--checkupdates {
+  flex: 1 1 100%;
+  max-width: none;
+}
+
 .config-field-description {
   color: var(--muted);
   font-size: 0.95rem;

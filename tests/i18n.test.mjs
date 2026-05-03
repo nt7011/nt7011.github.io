@@ -94,6 +94,10 @@ test("createTranslator includes new settings field descriptions", () => {
     "Resizes most texts other than Game Message. Accepted values: integers from 1 to 100.",
   );
   assert.equal(
+    en("field.checkUpdates.description"),
+    "Automatically check for updates. Automatic updates are not supported. You will always be prompted to visit this webpage to update.",
+  );
+  assert.equal(
     en("field.gameMessage.originAwareLineBreaks.description"),
     "Ignores plugin-defined line break insertions on Game_Message. Enable if Game Messages have weird line breaks, and disable if the game starts acting strangely.",
   );
@@ -112,6 +116,14 @@ test("createTranslator includes new settings field descriptions", () => {
   assert.equal(
     ko("field.ignoreTranslationRegex.summary", { count: 3 }),
     "3개의 무시 규칙이 활성화되어 있습니다.",
+  );
+  assert.equal(
+    ko("config.section.updates"),
+    "업데이트",
+  );
+  assert.equal(
+    ko("field.checkUpdates.description"),
+    "새 업데이트를 주기적으로 확인합니다. 자동 업데이트는 지원되지 않으므로 이 페이지를 방문하여 업데이트를 하라는 문구가 표시됩니다.",
   );
   assert.equal(
     ko("error.ignoreTranslationRegex.quoted", { line: 2 }),

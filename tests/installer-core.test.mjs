@@ -79,6 +79,7 @@ test("getMissingConfigFields reports missing leaf paths from bundled defaults", 
   const missingFields = getMissingConfigFields(
     {
       settings: {
+        checkUpdates: true,
         translation: {
           disableCjkFilter: false,
           maxOutputTokens: 512,
@@ -112,6 +113,7 @@ test("getMissingConfigFields reports missing leaf paths from bundled defaults", 
   );
 
   assert.deepEqual(missingFields, [
+    "settings.json:checkUpdates",
     "settings.json:translation.maxOutputTokens",
     "settings.json:gameMessage.textScale",
     "settings.json:gameMessage.originAwareLineBreaks",
