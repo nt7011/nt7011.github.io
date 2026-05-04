@@ -197,28 +197,31 @@ test("loadPublishedVersionInfo treats the unavailable fallback as unknown", asyn
 
 test("loadManifest normalizes the bundle install manifest schema", async () => {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (url) => createFetchResponse({
-    "/live-translator-installer/install-manifest.json": JSON.stringify({
-      schemaVersion: 2,
-      supportDirectory: "live-translator",
-      loader: "live-translator-loader.js",
-      install: {
-        files: ["translator.json", "runtime/paths.js"],
-        obsolete: ["hooks.js"],
-        settings: {
-          developmentSource: "settings.json",
-          releaseSource: "config-templates/settings.release.json",
-          destination: "settings.json",
+  globalThis.fetch = async (url, options) => {
+    assert.equal(options?.cache, "no-store");
+    return createFetchResponse({
+      "/live-translator-installer/install-manifest.json": JSON.stringify({
+        schemaVersion: 2,
+        supportDirectory: "live-translator",
+        loader: "live-translator-loader.js",
+        install: {
+          files: ["translator.json", "runtime/paths.js"],
+          obsolete: ["hooks.js"],
+          settings: {
+            developmentSource: "settings.json",
+            releaseSource: "config-templates/settings.release.json",
+            destination: "settings.json",
+          },
         },
-      },
-      runtime: {
-        loaderHelpers: ["loader/path-resolver.js"],
-        requiredAssets: ["translator.json", "settings.json"],
-        optionalAssets: ["precacher/precache.json"],
-        scriptLoadOrder: ["logger.js", "config.js"],
-      },
-    }),
-  }, url);
+        runtime: {
+          loaderHelpers: ["loader/path-resolver.js"],
+          requiredAssets: ["translator.json", "settings.json"],
+          optionalAssets: ["precacher/precache.json"],
+          scriptLoadOrder: ["logger.js", "config.js"],
+        },
+      }),
+    }, url);
+  };
 
   try {
     const manifest = await loadManifest(
@@ -232,6 +235,59 @@ test("loadManifest normalizes the bundle install manifest schema", async () => {
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("installGame fetches installer bundle files without cache", async () => {
+  const rootHandle = createFakeDirectory("Game");
+  const jsHandle = rootHandle.addDirectory("js");
+  jsHandle.addDirectory("plugins");
+
+  rootHandle.setFileText("package.json", '{"name":"Game"}\n');
+  jsHandle.setFileText("plugins.js", "[]\n");
+
+  const manifest = createTestManifest();
+  const requests = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    const pathname = new URL(String(url)).pathname;
+    requests.push({
+      cache: options?.cache,
+      pathname,
+    });
+    return createFetchResponse({
+      "/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
+      "/live-translator-installer/version.json": JSON.stringify({ version: "2.4" }),
+      "/live-translator-installer/settings.json": "{}\n",
+      "/live-translator-installer/translator.json": "{}\n",
+    }, url);
+  };
+
+  try {
+    await installGame(rootHandle, manifest, {
+      baseUrl: "https://example.test/app.mjs",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.deepEqual(requests, [
+    {
+      cache: "no-store",
+      pathname: "/live-translator-installer/live-translator-loader.js",
+    },
+    {
+      cache: "no-store",
+      pathname: "/live-translator-installer/version.json",
+    },
+    {
+      cache: "no-store",
+      pathname: "/live-translator-installer/translator.json",
+    },
+    {
+      cache: "no-store",
+      pathname: "/live-translator-installer/settings.json",
+    },
+  ]);
 });
 
 test("isVersionOutdated compares installed version against newest version", () => {

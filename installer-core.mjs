@@ -59,7 +59,7 @@ export function injectPluginEntry(text, entry, warningMessage = "Unable to injec
 
 export async function loadManifest(url = INSTALL_MANIFEST_URL, options = {}) {
   const t = getTranslator(options);
-  const response = await fetch(url);
+  const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(t("core.loadManifestFailed", { status: response.status }));
   }
@@ -758,7 +758,7 @@ async function loadInstalledVersionInfo(supportDirHandle, versionPath, t) {
 }
 
 async function fetchAssetBytes(url, t) {
-  const response = await fetch(url);
+  const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(t("core.fetchAssetFailed", {
       path: url.pathname,
@@ -771,7 +771,7 @@ async function fetchAssetBytes(url, t) {
 
 async function fetchOptionalAssetBytes(url) {
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { cache: "no-store" });
     if (!response.ok) {
       return null;
     }
@@ -783,7 +783,7 @@ async function fetchOptionalAssetBytes(url) {
 }
 
 async function fetchAssetText(url, t) {
-  const response = await fetch(url);
+  const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(t("core.fetchAssetFailed", {
       path: url.pathname,
@@ -811,7 +811,7 @@ async function fetchSettingsBundleText(manifest, bundleUrl, t) {
 
 async function fetchSettingsSource(settings, bundleUrl, t) {
   const developmentUrl = new URL(settings.developmentSource, bundleUrl);
-  const developmentResponse = await fetch(developmentUrl);
+  const developmentResponse = await fetch(developmentUrl, { cache: "no-store" });
   if (developmentResponse.ok) {
     const bytes = new Uint8Array(await developmentResponse.arrayBuffer());
     return {
@@ -821,7 +821,7 @@ async function fetchSettingsSource(settings, bundleUrl, t) {
   }
 
   const releaseUrl = new URL(settings.releaseSource, bundleUrl);
-  const releaseResponse = await fetch(releaseUrl);
+  const releaseResponse = await fetch(releaseUrl, { cache: "no-store" });
   if (!releaseResponse.ok) {
     throw new Error(t("core.fetchAssetFailed", {
       path: releaseUrl.pathname,
