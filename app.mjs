@@ -2,11 +2,14 @@ import {
   ensureReadWritePermission,
   INSTALL_MANIFEST_URL,
   INSTALL_VERSION_URL,
+  PUBLISHED_VERSION_URL,
+  getInstallVersionMismatch,
   inspectGameDirectory,
   installGame,
   isVersionOutdated,
   loadInstalledConfigs,
   loadManifest,
+  loadPublishedVersionInfo,
   loadVersionInfo,
   saveInstalledConfigs,
 } from "./installer-core.mjs";
@@ -475,6 +478,8 @@ async function handleInstall() {
   render();
 
   try {
+    await assertInstallableVersionIsCurrent();
+
     const permissionGranted = await ensureReadWritePermission(state.rootHandle);
     if (!permissionGranted) {
       throw new Error(t("error.permissionDenied"));
@@ -512,6 +517,19 @@ async function handleInstall() {
     state.busyAction = null;
     render();
   }
+}
+
+async function assertInstallableVersionIsCurrent() {
+  const publishedVersion = await loadPublishedVersionInfo(PUBLISHED_VERSION_URL);
+  const mismatch = getInstallVersionMismatch(state.translatorVersion, publishedVersion);
+  if (!mismatch) {
+    return;
+  }
+
+  throw new Error(t("error.outdatedInstallerPage", {
+    installableVersion: getDisplayVersion(mismatch.installableVersion),
+    publishedVersion: getDisplayVersion(mismatch.publishedVersion),
+  }));
 }
 
 async function handleSaveConfig() {

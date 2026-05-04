@@ -10,6 +10,11 @@ export const INSTALL_VERSION_URL = new URL(
   `./live-translator-installer/${VERSION_FILE_NAME}`,
   import.meta.url,
 );
+export const PUBLISHED_VERSION_URL = new URL(
+  "./info/translator-version.json",
+  import.meta.url,
+);
+export const PUBLISHED_VERSION_UNAVAILABLE = "server_latest_version_unavailable";
 export const CONFIG_FILE_MAP = Object.freeze({
   settings: "settings.json",
   translator: "translator.json",
@@ -120,6 +125,34 @@ export async function loadVersionInfo(url = INSTALL_VERSION_URL) {
   } catch {
     return null;
   }
+}
+
+export async function loadPublishedVersionInfo(url = PUBLISHED_VERSION_URL, options = {}) {
+  const versionUrl = new URL(url);
+  versionUrl.searchParams.set(
+    options.cacheBustParam ?? "installCheck",
+    String(options.cacheBustValue ?? Date.now()),
+  );
+
+  const version = await loadVersionInfo(versionUrl);
+  return version === PUBLISHED_VERSION_UNAVAILABLE ? null : version;
+}
+
+export function getInstallVersionMismatch(installableVersion, publishedVersion) {
+  const published = normalizeVersion(publishedVersion);
+  if (!published) {
+    return null;
+  }
+
+  const installable = normalizeVersion(installableVersion);
+  if (installable === published) {
+    return null;
+  }
+
+  return {
+    installableVersion: installable,
+    publishedVersion: published,
+  };
 }
 
 export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {

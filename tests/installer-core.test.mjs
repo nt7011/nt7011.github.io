@@ -5,12 +5,14 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  getInstallVersionMismatch,
   getMissingConfigFields,
   injectPluginEntry,
   installGame,
   isVersionOutdated,
   loadInstalledConfigs,
   loadManifest,
+  loadPublishedVersionInfo,
   loadVersionInfo,
   patchEmptyPackageName,
 } from "../installer-core.mjs";
@@ -151,6 +153,48 @@ test("loadVersionInfo returns null when version.json is missing", async () => {
   }
 });
 
+test("loadPublishedVersionInfo cache-busts the latest version check", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    const parsedUrl = new URL(String(url));
+    assert.equal(parsedUrl.pathname, "/info/translator-version.json");
+    assert.equal(parsedUrl.searchParams.get("installCheck"), "12345");
+    assert.equal(options?.cache, "no-store");
+    return createFetchResponse({
+      "/info/translator-version.json": JSON.stringify({ version: "2.4" }),
+    }, url);
+  };
+
+  try {
+    const version = await loadPublishedVersionInfo(
+      "https://example.test/info/translator-version.json",
+      { cacheBustValue: 12345 },
+    );
+    assert.equal(version, "2.4");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("loadPublishedVersionInfo treats the unavailable fallback as unknown", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => createFetchResponse({
+    "/info/translator-version.json": JSON.stringify({
+      version: "server_latest_version_unavailable",
+    }),
+  }, url);
+
+  try {
+    const version = await loadPublishedVersionInfo(
+      "https://example.test/info/translator-version.json",
+      { cacheBustValue: 12345 },
+    );
+    assert.equal(version, null);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("loadManifest normalizes the bundle install manifest schema", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => createFetchResponse({
@@ -198,6 +242,25 @@ test("isVersionOutdated compares installed version against newest version", () =
   assert.equal(isVersionOutdated("awergerf", "local_debug"), true);
   assert.equal(isVersionOutdated("local_debug", "local_debug"), false);
   assert.equal(isVersionOutdated("2.3", null), false);
+});
+
+test("getInstallVersionMismatch blocks stale or unknown installable versions", () => {
+  assert.equal(getInstallVersionMismatch("2.4", "2.4"), null);
+  assert.equal(getInstallVersionMismatch("2.4", null), null);
+  assert.deepEqual(
+    getInstallVersionMismatch("2.3", "2.4"),
+    {
+      installableVersion: "2.3",
+      publishedVersion: "2.4",
+    },
+  );
+  assert.deepEqual(
+    getInstallVersionMismatch(null, "2.4"),
+    {
+      installableVersion: null,
+      publishedVersion: "2.4",
+    },
+  );
 });
 
 test("installGame overwrites existing config files during reinstall", async () => {
