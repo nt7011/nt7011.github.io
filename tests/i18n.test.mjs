@@ -97,6 +97,11 @@ test("createTranslator includes new settings field descriptions", () => {
     en("field.checkUpdates.description"),
     "Automatically check for updates. Automatic updates are not supported. You will always be prompted to visit this webpage to update.",
   );
+  assert.equal(en("config.section.gui"), "GUI");
+  assert.equal(
+    en("field.disableGuiAutoLaunch.description"),
+    "Stops the translator GUI from opening automatically when the game starts. You can still open it with Control-Shift-Enter.",
+  );
   assert.equal(
     en("field.gameMessage.originAwareLineBreaks.description"),
     "Ignores plugin-defined line break insertions on Game_Message. Enable if Game Messages have weird line breaks, and disable if the game starts acting strangely.",
@@ -124,6 +129,11 @@ test("createTranslator includes new settings field descriptions", () => {
   assert.equal(
     ko("field.checkUpdates.description"),
     "새 업데이트를 주기적으로 확인합니다. 자동 업데이트는 지원되지 않으므로 이 페이지를 방문하여 업데이트를 하라는 문구가 표시됩니다.",
+  );
+  assert.equal(ko("config.section.gui"), "GUI");
+  assert.equal(
+    ko("field.disableGuiAutoLaunch.description"),
+    "실행시 번역기 패널이 자동으로 열리지 않도록 합니다. (Ctrl + Shift + Enter로 열 수 있습니다.)",
   );
   assert.equal(
     ko("error.ignoreTranslationRegex.quoted", { line: 2 }),

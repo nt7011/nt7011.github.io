@@ -51,6 +51,15 @@ const CHECK_UPDATES_FIELD = {
   descriptionKey: "field.checkUpdates.description",
   tooltipKey: "field.checkUpdates.tooltip",
 };
+
+const DISABLE_GUI_AUTO_LAUNCH_FIELD = {
+  id: "disableGuiAutoLaunch",
+  path: ["disableGuiAutoLaunch"],
+  inputKind: "checkbox",
+  label: "disableGuiAutoLaunch",
+  descriptionKey: "field.disableGuiAutoLaunch.description",
+  tooltipKey: "field.disableGuiAutoLaunch.tooltip",
+};
 const REINSTALL_DEFAULT_CONFIG_PATHS = [
   ["settings", ...CHECK_UPDATES_FIELD.path],
 ];
@@ -1381,6 +1390,27 @@ function renderSettingsConfig(container, config) {
 
   otherTextSection.append(otherTextFieldGrid);
   container.append(otherTextSection);
+
+  const guiSection = document.createElement("section");
+  guiSection.className = "config-group";
+
+  const guiHeading = document.createElement("h4");
+  guiHeading.className = "config-group-title";
+  guiHeading.textContent = t("config.section.gui");
+  guiSection.append(guiHeading);
+
+  const guiToggleGrid = document.createElement("div");
+  guiToggleGrid.className = "config-toggle-grid";
+  guiToggleGrid.append(
+    buildFieldInput(
+      "settings",
+      DISABLE_GUI_AUTO_LAUNCH_FIELD,
+      getValueAtPath(config, DISABLE_GUI_AUTO_LAUNCH_FIELD.path),
+    ),
+  );
+
+  guiSection.append(guiToggleGrid);
+  container.append(guiSection);
 
   const updatesSection = document.createElement("section");
   updatesSection.className = "config-group";
