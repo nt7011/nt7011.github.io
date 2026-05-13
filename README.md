@@ -7,7 +7,7 @@ The actual translator project lives here: [RPG-Maker-Live-Translator](https://gi
 ## What it does
 
 - Detects RPG Maker folder layouts using either `js/plugins` or `www/js/plugins`
-- Copies the loader and support files from `live-translator-installer/install-manifest.json`
+- Copies the loader and support files from the selected version's `live-translator-installer/install-manifest.json`
 - Adds the `live-translator-loader` entry to `plugins.js`
 - Patches an empty `name` field in `package.json` to `Game` when needed
 - Loads, edits, and saves installed `settings.json` and `translator.json`
@@ -27,8 +27,10 @@ The actual translator project lives here: [RPG-Maker-Live-Translator](https://gi
 3. Install the plugin bundle.
 4. Edit `settings.json` and `translator.json` in the UI if needed, then save.
 
-The latest approved installer is available at `/translator`, and the pinned
-3.2.10 installer is available at `/translator/3.2.10`.
+The root page loads `available-versions.json`, links the recommended version to
+`/translator`, and enables stable/prerelease versions only when their
+`/translator/<version>/` route is available. The pinned 3.2.10 installer is
+available at `/translator/3.2.10`.
 
 ## Translation providers
 
@@ -37,11 +39,10 @@ The latest approved installer is available at `/translator`, and the pinned
 
 ## Repository layout
 
-- `index.html`, `translator/`, `app.mjs`, `installer-core.mjs`: Version index, browser UI, and install logic
-- `config-editor.mjs`: Config field helpers
-- `i18n.mjs`: English and Korean UI strings
-- `scanner/`: NW.js DLL scanner, bundled hash catalog, and catalog download script
-- `live-translator-installer/`: Plugin files and shared install manifest copied into the game
+- `index.html`, `available-versions.json`, `version-index.mjs`: Dynamic version selector
+- `translator/index.html`: Recommended-version alias served without redirecting
+- `translator/<version>/`: Version-coupled installer UI, logic, scanner data, and payload
+- `translator/<version>/live-translator-installer/`: Plugin files and shared install manifest copied into the game
 - `game_example/`, `game_example_2/`: Sample target folders for testing
 - `tests/`: Node-based tests for config and installer behavior
 
@@ -65,10 +66,10 @@ node --test tests/*.test.mjs
 
 ## NW.js DLL hash catalog
 
-The installer does not contact `dl.nwjs.io` while scanning a user's folder. DLL hashes for known NW.js releases are bundled in `scanner/nwjs-dll-hashes.json`.
+The installer does not contact `dl.nwjs.io` while scanning a user's folder. DLL hashes for known NW.js releases are bundled per installer version, for example `translator/3.2.10/scanner/nwjs-dll-hashes.json`.
 
 To refresh the catalog from official NW.js release checksum files:
 
 ```bash
-node scanner/download-nwjs-hashes.mjs --output scanner/nwjs-dll-hashes.json
+node translator/3.2.10/scanner/download-nwjs-hashes.mjs --output translator/3.2.10/scanner/nwjs-dll-hashes.json
 ```

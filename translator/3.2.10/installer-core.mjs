@@ -11,7 +11,7 @@ export const INSTALL_VERSION_URL = new URL(
   import.meta.url,
 );
 export const PUBLISHED_VERSION_URL = new URL(
-  "./info/translator-version.json",
+  `./live-translator-installer/${VERSION_FILE_NAME}`,
   import.meta.url,
 );
 export const PUBLISHED_VERSION_UNAVAILABLE = "server_latest_version_unavailable";

@@ -152,12 +152,8 @@ h3 {
   padding-top: 24px;
 }
 
-.version-index-heading {
-  margin-top: 22px;
-}
-
 .version-index-sections {
-  margin-top: 12px;
+  margin-top: 20px;
 }
 
 .version-index-section + .version-index-section {

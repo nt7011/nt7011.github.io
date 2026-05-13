@@ -14,12 +14,17 @@ test("Pages workflow publishes translator version data for install and static ch
   );
 
   assert.match(workflow, /rm -f version\.json/);
-  assert.match(workflow, /cp _upstream\/version\.json \.\/live-translator-installer\/version\.json/);
+  assert.match(workflow, /cp _upstream\/version\.json _upstream\/live-translator-installer\/version\.json/);
+  assert.match(workflow, /target="\.\//);
+  assert.match(workflow, /translator\/\$version/);
+  assert.match(workflow, /mkdir -p "\$target"/);
+  assert.match(workflow, /cp -R _upstream\/live-translator-installer "\$target\/live-translator-installer"/);
   assert.match(workflow, /mkdir -p info/);
-  assert.match(workflow, /cp live-translator-installer\/version\.json \.\/info\/translator-version\.json/);
+  assert.match(workflow, /cp "\$target\/live-translator-installer\/version\.json" \.\/info\/translator-version\.json/);
   assert.match(workflow, /::warning::Missing version\.json/);
   assert.doesNotMatch(workflow, /rm -f info\/translator-version\.json/);
   assert.doesNotMatch(workflow, /test -f live-translator-installer\/version\.json/);
   assert.doesNotMatch(workflow, /::error::Missing version\.json/);
   assert.doesNotMatch(workflow, /cp _upstream\/version\.json \.\/version\.json/);
+  assert.doesNotMatch(workflow, /cp -R _upstream\/live-translator-installer \.\/live-translator-installer/);
 });

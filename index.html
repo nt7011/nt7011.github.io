@@ -9,21 +9,12 @@
   <body>
     <main class="app-shell version-index-shell">
       <section class="panel version-index-panel">
-        <p class="eyebrow">Approved versions</p>
-        <h1>RPG Maker MV/MZ Live Translator Installer</h1>
-        <p class="intro">Choose an approved translator installer version.</p>
-        <ul class="version-index-list" aria-label="Approved translator installer versions">
-          <li>
-            <a class="version-index-link" href="translator/3.2.10/">
-              <span class="version-index-version">3.2.10</span>
-              <span class="version-index-meta">Latest approved</span>
-            </a>
-          </li>
-        </ul>
-        <p class="version-index-alias">
-          <a href="translator/">Open latest at /translator</a>
-        </p>
+        <p class="eyebrow" data-version-i18n="page.eyebrow">Web based installer</p>
+        <h1 data-version-i18n="page.heading">RPG Maker MV/MZ Live Translator</h1>
+        <h2 class="version-index-heading" data-version-i18n="versions.heading">Available versions</h2>
+        <div id="version-index-sections" class="version-index-sections"></div>
       </section>
     </main>
+    <script type="module" src="./version-index.mjs"></script>
   </body>
 </html>

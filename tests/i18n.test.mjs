@@ -5,7 +5,7 @@ import {
   createTranslator,
   detectPreferredLocale,
   resolveLocale,
-} from "../i18n.mjs";
+} from "../translator/3.2.10/i18n.mjs";
 
 test("detectPreferredLocale prefers Korean when navigator.languages includes ko", () => {
   const locale = detectPreferredLocale({

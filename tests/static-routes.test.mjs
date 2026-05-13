@@ -3,6 +3,13 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import {
+  createRecommendedVersionPath,
+  createVersionSections,
+  createVersionPath,
+  normalizeAvailableVersionsManifest,
+  resolveVersionSections,
+} from "../version-index.mjs";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(currentDirectory, "..");
@@ -14,11 +21,20 @@ async function readSiteFile(...segments) {
 test("root index lists the approved translator version", async () => {
   const html = await readSiteFile("index.html");
 
-  assert.match(html, /Approved versions/);
-  assert.match(html, /href="translator\/3\.2\.10\/"/);
-  assert.match(html, /href="translator\/"/);
+  assert.match(html, /Web based installer/);
+  assert.match(html, /RPG Maker MV\/MZ Live Translator/);
+  assert.match(html, /Available versions/);
+  assert.match(html, /id="version-index-sections"/);
+  assert.match(html, /src="\.\/version-index\.mjs"/);
+  assert.match(html, /data-version-i18n="page\.eyebrow"/);
+  assert.match(html, /data-version-i18n="page\.heading"/);
+  assert.doesNotMatch(html, /Choose an approved translator installer version/);
+  assert.doesNotMatch(html, /version-index-status/);
+  assert.doesNotMatch(html, /Approved versions loaded/);
   assert.doesNotMatch(html, /id="pick-folder-button"/);
   assert.doesNotMatch(html, /src="\.\/app\.mjs"/);
+  assert.doesNotMatch(html, /href="translator\/"/);
+  assert.doesNotMatch(html, /href="translator\/3\.2\.10\/"/);
 });
 
 test("translator routes serve the installer page with depth-correct assets", async () => {
@@ -26,20 +42,147 @@ test("translator routes serve the installer page with depth-correct assets", asy
   const versionHtml = await readSiteFile("translator", "3.2.10", "index.html");
 
   assert.match(latestHtml, /id="pick-folder-button"/);
-  assert.match(latestHtml, /href="\.\.\/styles\.css"/);
-  assert.match(latestHtml, /src="\.\.\/app\.mjs"/);
+  assert.match(latestHtml, /href="\.\/3\.2\.10\/styles\.css"/);
+  assert.match(latestHtml, /src="\.\/3\.2\.10\/app\.mjs"/);
   assert.match(latestHtml, /href="\.\.\/cheats\/"/);
 
   assert.match(versionHtml, /id="pick-folder-button"/);
-  assert.match(versionHtml, /href="\.\.\/\.\.\/styles\.css"/);
-  assert.match(versionHtml, /src="\.\.\/\.\.\/app\.mjs"/);
+  assert.match(versionHtml, /href="\.\/styles\.css"/);
+  assert.match(versionHtml, /src="\.\/app\.mjs"/);
   assert.match(versionHtml, /href="\.\.\/\.\.\/cheats\/"/);
 });
 
-test("checked-in translator version metadata matches the approved route", async () => {
+test("checked-in translator version metadata matches the approved version folder", async () => {
+  const availableVersions = JSON.parse(await readSiteFile("available-versions.json"));
   const publicVersion = JSON.parse(await readSiteFile("info", "translator-version.json"));
-  const bundledVersion = JSON.parse(await readSiteFile("live-translator-installer", "version.json"));
+  const bundledVersion = JSON.parse(await readSiteFile(
+    "translator",
+    "3.2.10",
+    "live-translator-installer",
+    "version.json",
+  ));
+  const versionedInstallerCore = await readSiteFile("translator", "3.2.10", "installer-core.mjs");
 
+  assert.equal(availableVersions.recommended, "3.2.10");
+  assert.deepEqual(availableVersions.stable, ["3.2.10"]);
+  assert.deepEqual(availableVersions.prerelease, []);
   assert.equal(publicVersion.version, "3.2.10");
   assert.equal(bundledVersion.version, "3.2.10");
+  assert.match(versionedInstallerCore, /`\.\/live-translator-installer\/\$\{VERSION_FILE_NAME\}`/);
+});
+
+test("version manifest helpers normalize categories into unique route entries", () => {
+  const manifest = normalizeAvailableVersionsManifest({
+    Recommended: " 3.2.10 ",
+    Stable: ["3.2.10", "3.2.9", "3.2.9"],
+    Prerelease: ["3.3.0-beta.1"],
+  });
+
+  assert.deepEqual(manifest, {
+    recommended: "3.2.10",
+    stable: ["3.2.10", "3.2.9"],
+    prerelease: ["3.3.0-beta.1"],
+  });
+
+  const sections = createVersionSections(manifest);
+  assert.deepEqual({
+    recommended: sections.recommended.map((entry) => ({
+      version: entry.version,
+      href: entry.href,
+      category: entry.category,
+    })),
+    prerelease: sections.prerelease.map((entry) => ({
+      version: entry.version,
+      href: entry.href,
+      category: entry.category,
+    })),
+    stable: sections.stable.map((entry) => ({
+      version: entry.version,
+      href: entry.href,
+      category: entry.category,
+    })),
+  }, {
+    recommended: [
+      { version: "3.2.10", href: "translator/", category: "recommended" },
+    ],
+    prerelease: [
+      { version: "3.3.0-beta.1", href: "translator/3.3.0-beta.1/", category: "prerelease" },
+    ],
+    stable: [
+      { version: "3.2.10", href: "translator/3.2.10/", category: "stable" },
+      { version: "3.2.9", href: "translator/3.2.9/", category: "stable" },
+    ],
+  });
+});
+
+test("version routes are enabled only when the listed directory is available", async () => {
+  const sections = createVersionSections({
+    recommended: "3.2.10",
+    stable: ["missing-version"],
+    prerelease: ["../unsafe"],
+  });
+  const requestedUrls = [];
+  const resolved = await resolveVersionSections(sections, {
+    baseUrl: "https://example.test/site/",
+    fetchImpl: async (url) => {
+      requestedUrls.push(String(url));
+      return {
+        ok: !String(url).includes("missing-version"),
+      };
+    },
+  });
+
+  assert.equal(createVersionPath("3.2.10"), "translator/3.2.10/");
+  assert.equal(createRecommendedVersionPath("3.2.10"), "translator/");
+  assert.equal(createVersionPath("../unsafe"), null);
+  assert.deepEqual(requestedUrls, [
+    "https://example.test/site/translator/",
+    "https://example.test/site/translator/3.2.10/",
+    "https://example.test/site/translator/missing-version/",
+  ]);
+  assert.deepEqual({
+    recommended: resolved.recommended.map((entry) => ({
+      version: entry.version,
+      href: entry.href,
+      available: entry.available,
+      availabilityKey: entry.availabilityKey,
+    })),
+    prerelease: resolved.prerelease.map((entry) => ({
+      version: entry.version,
+      href: entry.href,
+      available: entry.available,
+      availabilityKey: entry.availabilityKey,
+    })),
+    stable: resolved.stable.map((entry) => ({
+      version: entry.version,
+      href: entry.href,
+      available: entry.available,
+      availabilityKey: entry.availabilityKey,
+    })),
+  }, {
+    recommended: [
+      {
+        version: "3.2.10",
+        href: "translator/",
+        available: true,
+        availabilityKey: "status.available",
+      },
+    ],
+    prerelease: [
+      {
+        version: "../unsafe",
+        href: null,
+        available: false,
+        availabilityKey: "status.unavailable",
+      },
+    ],
+    stable: [
+      {
+        version: "missing-version",
+        href: "translator/missing-version/",
+        available: false,
+        availabilityKey: "status.unavailable",
+      },
+    ],
+  });
 });
