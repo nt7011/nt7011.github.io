@@ -34,8 +34,9 @@ const VERSION_SECTIONS = [
 const VERSION_INDEX_COPY = {
   en: {
     "document.title": "RPG MV/MZ Live Translator Installer Versions",
-    "page.eyebrow": "Web based installer",
+    "page.eyebrow": "Browser installer",
     "page.heading": "RPG Maker MV/MZ Live Translator",
+    "page.intro": "Choose the game folder and install the <a href=\"https://github.com/nt7011/RPG-Maker-Live-Translator\" target=\"_blank\" rel=\"noopener noreferrer\">translator plugin</a> directly from the browser.",
     "versions.heading": "Available versions",
     "section.recommended.heading": "Recommended",
     "section.recommended.ariaLabel": "Recommended translator installer version",
@@ -51,14 +52,18 @@ const VERSION_INDEX_COPY = {
     "label.stable": "Stable",
     "status.available": "Available",
     "status.unavailable": "Unavailable",
+    "cheats.heading": "Install Cheats",
+    "cheats.copy": "Install RPG Maker MV/MZ cheats directly from the browser.",
+    "cheats.link": "Install Cheats",
   },
   ko: {
     "section.recommendedBeta.heading": "추천 베타",
     "section.recommendedBeta.ariaLabel": "추천 베타 번역기 설치 버전",
     "label.recommendedBeta": "추천 베타",
     "document.title": "RPG MV/MZ 실시간 번역기 설치 버전",
-    "page.eyebrow": "웹 기반 설치기",
+    "page.eyebrow": "브라우저 설치기",
     "page.heading": "RPG Maker MV/MZ 실시간 번역기",
+    "page.intro": "게임 폴더를 선택하고 브라우저에서 바로 <a href=\"https://github.com/nt7011/RPG-Maker-Live-Translator\" target=\"_blank\" rel=\"noopener noreferrer\">번역 플러그인</a>을 설치하세요.",
     "versions.heading": "사용 가능한 버전",
     "section.recommended.heading": "추천 버전",
     "section.recommended.ariaLabel": "추천 번역기 설치 버전",
@@ -71,6 +76,9 @@ const VERSION_INDEX_COPY = {
     "label.stable": "안정",
     "status.available": "사용 가능",
     "status.unavailable": "사용 불가",
+    "cheats.heading": "치트 설치",
+    "cheats.copy": "브라우저에서 바로 RPG Maker MV/MZ 치트를 설치하세요.",
+    "cheats.link": "치트 설치",
   },
 };
 
@@ -298,6 +306,10 @@ function applyStaticTranslations(t) {
   for (const element of document.querySelectorAll("[data-version-i18n]")) {
     element.textContent = t(element.dataset.versionI18n);
   }
+
+  for (const element of document.querySelectorAll("[data-version-i18n-html]")) {
+    element.innerHTML = t(element.dataset.versionI18nHtml);
+  }
 }
 
 function renderVersionSections(versionSections, sections, t) {
@@ -330,7 +342,7 @@ function createVersionListItem(entry, t) {
     ? document.createElement("a")
     : document.createElement("span");
 
-  container.className = "version-index-link";
+  container.className = `version-index-link is-category-${entry.category}`;
   if (entry.available && entry.href) {
     container.href = entry.href;
   } else {

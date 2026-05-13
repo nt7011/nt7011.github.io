@@ -10,12 +10,6 @@ import {
   normalizeAvailableVersionsManifest,
   resolveVersionSections,
 } from "../version-index.mjs";
-import {
-  createVersionAssetUrl,
-  createVersionPageUrl,
-  loadRecommendedTranslatorVersion,
-  rewriteLatestRouteHref,
-} from "../translator/latest.mjs";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(currentDirectory, "..");
@@ -24,16 +18,52 @@ async function readSiteFile(...segments) {
   return readFile(path.join(repoRoot, ...segments), "utf8");
 }
 
+function createLatestTranslatorAliasHtml(versionHtml, recommendedVersion) {
+  return versionHtml
+    .replaceAll('href="./styles.css"', `href="./${recommendedVersion}/styles.css"`)
+    .replaceAll('src="./app.mjs"', `src="./${recommendedVersion}/app.mjs"`)
+    .replaceAll('href="../../cheats/"', 'href="../cheats/"')
+    .replaceAll('href="../../"', 'href="../"');
+}
+
 test("root index lists the approved translator version", async () => {
   const html = await readSiteFile("index.html");
+  const css = await readSiteFile("styles.css");
+  const script = await readSiteFile("version-index.mjs");
 
-  assert.match(html, /Web based installer/);
+  assert.match(html, /Browser installer/);
   assert.match(html, /RPG Maker MV\/MZ Live Translator/);
+  assert.match(html, /Choose the game folder and install the/);
+  assert.match(html, /translator plugin/);
   assert.match(html, /Available versions/);
+  assert.match(html, /<main class="app-shell version-index-shell">/);
+  assert.match(html, /class="panel primary-panel"/);
+  assert.match(html, /<section class="panel primary-panel">[\s\S]*?<section class="panel version-index-content"[\s\S]*?<section class="panel cheats-panel"/);
+  assert.match(html, /data-version-i18n-html="page\.intro"/);
+  assert.match(html, /class="panel version-index-content"/);
+  assert.match(html, /data-version-i18n="cheats\.heading"/);
+  assert.match(html, /Install RPG Maker MV\/MZ cheats directly from the browser/);
+  assert.match(html, /data-version-i18n="cheats\.copy"/);
+  assert.match(html, /href="\.\/cheats\/"/);
   assert.match(html, /id="version-index-sections"/);
   assert.match(html, /src="\.\/version-index\.mjs"/);
   assert.match(html, /data-version-i18n="page\.eyebrow"/);
   assert.match(html, /data-version-i18n="page\.heading"/);
+  assert.doesNotMatch(html, /version-index-header/);
+  assert.match(css, /\.version-index-shell/);
+  assert.match(css, /width: min\(672px, calc\(100vw - 32px\)\)/);
+  assert.match(css, /width: min\(672px, calc\(100vw - 20px\)\)/);
+  assert.match(css, /width: min\(672px, calc\(100vw - 48px\)\)/);
+  assert.doesNotMatch(css, /grid-template-columns: 1fr;\s*\}\s*\.version-index-availability/);
+  assert.match(script, /is-category-\$\{entry\.category\}/);
+  assert.match(css, /is-category-recommended/);
+  assert.match(css, /is-category-prerelease/);
+  assert.match(css, /is-category-stable/);
+  assert.match(css, /--prerelease: #db2777/);
+  assert.match(css, /--stable: #2563eb/);
+  assert.match(css, /\.cheats-panel \.cheats-link a/);
+  assert.match(css, /border-left-color: #7c3aed/);
+  assert.doesNotMatch(html, /version-index-panel/);
   assert.doesNotMatch(html, /Choose an approved translator installer version/);
   assert.doesNotMatch(html, /version-index-status/);
   assert.doesNotMatch(html, /Approved versions loaded/);
@@ -46,11 +76,16 @@ test("root index lists the approved translator version", async () => {
 test("translator routes serve the installer page with depth-correct assets", async () => {
   const latestHtml = await readSiteFile("translator", "index.html");
   const versionHtml = await readSiteFile("translator", "3.2.10", "index.html");
+  const availableVersions = JSON.parse(await readSiteFile("available-versions.json"));
 
-  assert.match(latestHtml, /Loading translator installer/);
-  assert.match(latestHtml, /src="\.\/latest\.mjs"/);
-  assert.doesNotMatch(latestHtml, /id="pick-folder-button"/);
-  assert.doesNotMatch(latestHtml, /src="\.\/3\.2\.10\/app\.mjs"/);
+  assert.match(latestHtml, /id="pick-folder-button"/);
+  assert.match(latestHtml, /<div class="layout-sidebar">\s*<a class="back-button" href="\.\.\/"[\s\S]*?<section class="panel primary-panel">/);
+  assert.match(latestHtml, /&larr; Back to Version Select/);
+  assert.match(latestHtml, /<section class="panel detected-panel">[\s\S]*?<section class="panel precacher-panel"[\s\S]*?<section class="panel cheats-panel"/);
+  assert.match(latestHtml, /class="back-button" href="\.\.\/"/);
+  assert.match(latestHtml, /href="\.\/3\.2\.10\/styles\.css"/);
+  assert.match(latestHtml, /src="\.\/3\.2\.10\/app\.mjs"/);
+  assert.match(latestHtml, /href="\.\.\/cheats\/"/);
 
   assert.match(versionHtml, /id="pick-folder-button"/);
   assert.match(versionHtml, /<div class="layout-sidebar">\s*<a class="back-button" href="\.\.\/\.\.\/"[\s\S]*?<section class="panel primary-panel">/);
@@ -60,55 +95,10 @@ test("translator routes serve the installer page with depth-correct assets", asy
   assert.match(versionHtml, /href="\.\/styles\.css"/);
   assert.match(versionHtml, /src="\.\/app\.mjs"/);
   assert.match(versionHtml, /href="\.\.\/\.\.\/cheats\/"/);
-});
-
-test("translator latest route resolves and rewrites the recommended version in place", async () => {
-  const requests = [];
-  const version = await loadRecommendedTranslatorVersion({
-    fetchImpl: async (url, options) => {
-      requests.push({ url: String(url), cache: options?.cache });
-      return {
-        ok: true,
-        async json() {
-          return {
-            version: "3.2.9",
-            recommended: "3.2.10",
-            "recommended-beta": "",
-          };
-        },
-      };
-    },
-  });
-
-  assert.equal(version, "3.2.10");
-  assert.deepEqual(requests.map((request) => request.cache), ["no-store"]);
   assert.equal(
-    String(createVersionPageUrl("3.2.10", "https://example.test/translator/latest.mjs")),
-    "https://example.test/translator/3.2.10/index.html",
+    latestHtml,
+    createLatestTranslatorAliasHtml(versionHtml, availableVersions.recommended),
   );
-  assert.equal(
-    String(createVersionAssetUrl("3.2.10", "app.mjs", "https://example.test/translator/latest.mjs")),
-    "https://example.test/translator/3.2.10/app.mjs",
-  );
-  assert.equal(createVersionPageUrl("../unsafe", "https://example.test/translator/latest.mjs"), null);
-  assert.equal(rewriteLatestRouteHref("../../"), "../");
-  assert.equal(rewriteLatestRouteHref("../../cheats/"), "../cheats/");
-  assert.equal(rewriteLatestRouteHref("https://example.test/"), "https://example.test/");
-});
-
-test("translator latest route falls back to available-versions.json", async () => {
-  const version = await loadRecommendedTranslatorVersion({
-    fetchImpl: async (url) => ({
-      ok: !String(url).includes("translator-version"),
-      async json() {
-        return {
-          Recommended: "3.2.10",
-        };
-      },
-    }),
-  });
-
-  assert.equal(version, "3.2.10");
 });
 
 test("translator version metadata matches the approved version folder", async () => {

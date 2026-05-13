@@ -29,6 +29,10 @@ test("Pages workflow publishes translator version data for install and static ch
   assert.match(workflow, /mkdir -p "\$target"/);
   assert.match(workflow, /cp -R "\$source_dir\/live-translator-installer" "\$target\/live-translator-installer"/);
   assert.match(workflow, /mkdir -p info/);
+  assert.match(workflow, /Recommended version page \$\{recommendedPage\} is missing\./);
+  assert.match(workflow, /fs\.writeFileSync\("translator\/index\.html", latestTranslatorPage\)/);
+  assert.match(workflow, /replaceAll\('href="\.\/styles\.css"', `href="\.\/\$\{data\.recommended\}\/styles\.css"`\)/);
+  assert.match(workflow, /replaceAll\('src="\.\/app\.mjs"', `src="\.\/\$\{data\.recommended\}\/app\.mjs"`\)/);
   assert.match(workflow, /fs\.writeFileSync\("info\/translator-version\.json"/);
   assert.match(workflow, /version: data\.recommended/);
   assert.match(workflow, /recommended: data\.recommended/);

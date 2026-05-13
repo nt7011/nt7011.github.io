@@ -129,6 +129,17 @@ jobs:
           node <<'NODE'
           const fs = require("fs");
           const data = JSON.parse(fs.readFileSync("_available-translator-versions.json", "utf8"));
+          const recommendedPage = `translator/${data.recommended}/index.html`;
+          if (!fs.existsSync(recommendedPage)) {
+            throw new Error(`Recommended version page ${recommendedPage} is missing.`);
+          }
+
+          const latestTranslatorPage = fs.readFileSync(recommendedPage, "utf8")
+            .replaceAll('href="./styles.css"', `href="./${data.recommended}/styles.css"`)
+            .replaceAll('src="./app.mjs"', `src="./${data.recommended}/app.mjs"`)
+            .replaceAll('href="../../cheats/"', 'href="../cheats/"')
+            .replaceAll('href="../../"', 'href="../"');
+          fs.writeFileSync("translator/index.html", latestTranslatorPage);
           fs.writeFileSync("info/translator-version.json", JSON.stringify({
             version: data.recommended,
             recommended: data.recommended,

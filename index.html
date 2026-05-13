@@ -8,11 +8,31 @@
   </head>
   <body>
     <main class="app-shell version-index-shell">
-      <section class="panel version-index-panel">
-        <p class="eyebrow" data-version-i18n="page.eyebrow">Web based installer</p>
+      <section class="panel primary-panel">
+        <p class="eyebrow" data-version-i18n="page.eyebrow">Browser installer</p>
         <h1 data-version-i18n="page.heading">RPG Maker MV/MZ Live Translator</h1>
+        <p class="intro" data-version-i18n-html="page.intro">
+          Choose the game folder and install the
+          <a
+            href="https://github.com/nt7011/RPG-Maker-Live-Translator"
+            target="_blank"
+            rel="noopener noreferrer"
+          >translator plugin</a>
+          directly from the browser.
+        </p>
+      </section>
+
+      <section class="panel version-index-content" aria-labelledby="version-index-heading">
         <h2 class="version-index-heading" data-version-i18n="versions.heading">Available versions</h2>
         <div id="version-index-sections" class="version-index-sections"></div>
+      </section>
+
+      <section class="panel cheats-panel" aria-labelledby="cheats-panel-heading">
+        <h2 id="cheats-panel-heading" data-version-i18n="cheats.heading">Install Cheats</h2>
+        <p data-version-i18n="cheats.copy">Install RPG Maker MV/MZ cheats directly from the browser.</p>
+        <p class="cheats-link">
+          <a href="./cheats/" data-version-i18n="cheats.link">Install Cheats</a>
+        </p>
       </section>
     </main>
     <script type="module" src="./version-index.mjs"></script>
