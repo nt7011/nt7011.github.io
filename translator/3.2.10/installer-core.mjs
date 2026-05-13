@@ -11,7 +11,7 @@ export const INSTALL_VERSION_URL = new URL(
   import.meta.url,
 );
 export const PUBLISHED_VERSION_URL = new URL(
-  `./live-translator-installer/${VERSION_FILE_NAME}`,
+  "../../info/translator-version.json",
   import.meta.url,
 );
 export const PUBLISHED_VERSION_UNAVAILABLE = "server_latest_version_unavailable";
@@ -134,8 +134,19 @@ export async function loadPublishedVersionInfo(url = PUBLISHED_VERSION_URL, opti
     String(options.cacheBustValue ?? Date.now()),
   );
 
-  const version = await loadVersionInfo(versionUrl);
-  return version === PUBLISHED_VERSION_UNAVAILABLE ? null : version;
+  try {
+    const response = await fetch(versionUrl, { cache: "no-store" });
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+    const version = normalizeVersion(data?.recommended) ?? normalizeVersion(data?.version);
+
+    return version === PUBLISHED_VERSION_UNAVAILABLE ? null : version;
+  } catch {
+    return null;
+  }
 }
 
 export function getInstallVersionMismatch(installableVersion, publishedVersion) {

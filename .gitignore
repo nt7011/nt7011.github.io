@@ -3,3 +3,4 @@ live-translator-installer*/
 .codex
 .vscode/*
 translator/*/live-translator-installer*/
+info/translator-version.json

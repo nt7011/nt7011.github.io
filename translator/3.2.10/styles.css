@@ -121,6 +121,7 @@ h3 {
   font-size: 0.95rem;
   font-weight: 600;
   overflow-wrap: anywhere;
+  white-space: pre-line;
 }
 
 .version-note.is-neutral {

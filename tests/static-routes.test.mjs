@@ -72,6 +72,7 @@ test("checked-in translator version metadata matches the approved version folder
   assert.equal(publicVersion["recommended-beta"], "");
   assert.equal(bundledVersion.version, "3.2.10");
   assert.match(versionedInstallerCore, /`\.\/live-translator-installer\/\$\{VERSION_FILE_NAME\}`/);
+  assert.match(versionedInstallerCore, /\.\.\/\.\.\/info\/translator-version\.json/);
 });
 
 test("version manifest helpers normalize categories into unique route entries", () => {

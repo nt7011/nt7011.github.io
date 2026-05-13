@@ -55,6 +55,19 @@ test("createTranslator includes cache-only provider copy", () => {
   );
 });
 
+test("createTranslator includes installer version summary copy", () => {
+  const en = createTranslator("en-US");
+
+  assert.equal(
+    en("page.version.summary", {
+      latestStableVersion: "3.2.10",
+      installableVersion: "3.2.10",
+      currentVersion: "3.2.9",
+    }),
+    "Latest Stable: 3.2.10\nAbout to Install: 3.2.10\nCurrent Version: 3.2.9",
+  );
+});
+
 test("createTranslator includes precacher reminder localization", () => {
   const en = createTranslator("en-US");
   const ko = createTranslator("ko-KR");

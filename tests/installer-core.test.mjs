@@ -161,7 +161,10 @@ test("loadPublishedVersionInfo cache-busts the latest version check", async () =
     assert.equal(parsedUrl.searchParams.get("installCheck"), "12345");
     assert.equal(options?.cache, "no-store");
     return createFetchResponse({
-      "/info/translator-version.json": JSON.stringify({ version: "2.4" }),
+      "/info/translator-version.json": JSON.stringify({
+        version: "2.4",
+        recommended: "2.5",
+      }),
     }, url);
   };
 
@@ -170,7 +173,7 @@ test("loadPublishedVersionInfo cache-busts the latest version check", async () =
       "https://example.test/info/translator-version.json",
       { cacheBustValue: 12345 },
     );
-    assert.equal(version, "2.4");
+    assert.equal(version, "2.5");
   } finally {
     globalThis.fetch = originalFetch;
   }
