@@ -2,6 +2,7 @@ export const AVAILABLE_VERSIONS_URL = new URL("./available-versions.json", impor
 
 const VERSION_FIELD_ALIASES = {
   recommended: ["recommended", "Recommended"],
+  recommendedBeta: ["recommended-beta", "recommendedBeta", "RecommendedBeta", "Recommended-Beta"],
   stable: ["stable", "Stable"],
   prerelease: ["prerelease", "Prerelease", "preRelease", "PreRelease"],
 };
@@ -11,6 +12,12 @@ const VERSION_SECTIONS = [
     id: "recommended",
     headingKey: "section.recommended.heading",
     ariaLabelKey: "section.recommended.ariaLabel",
+  },
+  {
+    id: "recommendedBeta",
+    headingKey: "section.recommendedBeta.heading",
+    ariaLabelKey: "section.recommendedBeta.ariaLabel",
+    renderWhenEmpty: false,
   },
   {
     id: "prerelease",
@@ -32,17 +39,23 @@ const VERSION_INDEX_COPY = {
     "versions.heading": "Available versions",
     "section.recommended.heading": "Recommended",
     "section.recommended.ariaLabel": "Recommended translator installer version",
+    "section.recommendedBeta.heading": "Recommended beta",
+    "section.recommendedBeta.ariaLabel": "Recommended beta translator installer version",
     "section.prerelease.heading": "Prerelease versions",
     "section.prerelease.ariaLabel": "Prerelease translator installer versions",
     "section.stable.heading": "Stable versions",
     "section.stable.ariaLabel": "Stable translator installer versions",
     "label.recommended": "Recommended",
+    "label.recommendedBeta": "Recommended beta",
     "label.prerelease": "Prerelease",
     "label.stable": "Stable",
     "status.available": "Available",
     "status.unavailable": "Unavailable",
   },
   ko: {
+    "section.recommendedBeta.heading": "추천 베타",
+    "section.recommendedBeta.ariaLabel": "추천 베타 번역기 설치 버전",
+    "label.recommendedBeta": "추천 베타",
     "document.title": "RPG MV/MZ 실시간 번역기 설치 버전",
     "page.eyebrow": "웹 기반 설치기",
     "page.heading": "RPG Maker MV/MZ 실시간 번역기",
@@ -68,6 +81,7 @@ export function normalizeAvailableVersionsManifest(manifest) {
 
   return {
     recommended: normalizeRecommendedVersion(readAliasedField(source, VERSION_FIELD_ALIASES.recommended)),
+    recommendedBeta: normalizeRecommendedVersion(readAliasedField(source, VERSION_FIELD_ALIASES.recommendedBeta)),
     stable: normalizeVersionList(readAliasedField(source, VERSION_FIELD_ALIASES.stable)),
     prerelease: normalizeVersionList(readAliasedField(source, VERSION_FIELD_ALIASES.prerelease)),
   };
@@ -83,6 +97,9 @@ export function createVersionSections(manifest) {
   return {
     recommended: normalized.recommended
       ? [createRecommendedVersionEntry(normalized.recommended)]
+      : [],
+    recommendedBeta: normalized.recommendedBeta
+      ? [createVersionEntry(normalized.recommendedBeta, "recommendedBeta", createVersionPath(normalized.recommendedBeta))]
       : [],
     prerelease: normalized.prerelease.map((version) => (
       createVersionEntry(version, "prerelease", createVersionPath(version))
@@ -284,9 +301,9 @@ function applyStaticTranslations(t) {
 }
 
 function renderVersionSections(versionSections, sections, t) {
-  versionSections.replaceChildren(...VERSION_SECTIONS.map((section) => (
-    createVersionSection(section, sections[section.id] ?? [], t)
-  )));
+  versionSections.replaceChildren(...VERSION_SECTIONS
+    .filter((section) => section.renderWhenEmpty !== false || (sections[section.id] ?? []).length > 0)
+    .map((section) => createVersionSection(section, sections[section.id] ?? [], t)));
 }
 
 function createVersionSection(section, entries, t) {

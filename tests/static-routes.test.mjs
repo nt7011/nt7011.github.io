@@ -64,9 +64,12 @@ test("checked-in translator version metadata matches the approved version folder
   const versionedInstallerCore = await readSiteFile("translator", "3.2.10", "installer-core.mjs");
 
   assert.equal(availableVersions.recommended, "3.2.10");
+  assert.equal(availableVersions["recommended-beta"], "");
   assert.deepEqual(availableVersions.stable, ["3.2.10"]);
   assert.deepEqual(availableVersions.prerelease, []);
   assert.equal(publicVersion.version, "3.2.10");
+  assert.equal(publicVersion.recommended, "3.2.10");
+  assert.equal(publicVersion["recommended-beta"], "");
   assert.equal(bundledVersion.version, "3.2.10");
   assert.match(versionedInstallerCore, /`\.\/live-translator-installer\/\$\{VERSION_FILE_NAME\}`/);
 });
@@ -74,12 +77,14 @@ test("checked-in translator version metadata matches the approved version folder
 test("version manifest helpers normalize categories into unique route entries", () => {
   const manifest = normalizeAvailableVersionsManifest({
     Recommended: " 3.2.10 ",
+    "recommended-beta": "3.3.0b10",
     Stable: ["3.2.10", "3.2.9", "3.2.9"],
     Prerelease: ["3.3.0-beta.1"],
   });
 
   assert.deepEqual(manifest, {
     recommended: "3.2.10",
+    recommendedBeta: "3.3.0b10",
     stable: ["3.2.10", "3.2.9"],
     prerelease: ["3.3.0-beta.1"],
   });
@@ -87,6 +92,11 @@ test("version manifest helpers normalize categories into unique route entries", 
   const sections = createVersionSections(manifest);
   assert.deepEqual({
     recommended: sections.recommended.map((entry) => ({
+      version: entry.version,
+      href: entry.href,
+      category: entry.category,
+    })),
+    recommendedBeta: sections.recommendedBeta.map((entry) => ({
       version: entry.version,
       href: entry.href,
       category: entry.category,
@@ -105,6 +115,9 @@ test("version manifest helpers normalize categories into unique route entries", 
     recommended: [
       { version: "3.2.10", href: "translator/", category: "recommended" },
     ],
+    recommendedBeta: [
+      { version: "3.3.0b10", href: "translator/3.3.0b10/", category: "recommendedBeta" },
+    ],
     prerelease: [
       { version: "3.3.0-beta.1", href: "translator/3.3.0-beta.1/", category: "prerelease" },
     ],
@@ -118,6 +131,7 @@ test("version manifest helpers normalize categories into unique route entries", 
 test("version routes are enabled only when the listed directory is available", async () => {
   const sections = createVersionSections({
     recommended: "3.2.10",
+    "recommended-beta": "3.3.0b10",
     stable: ["missing-version"],
     prerelease: ["../unsafe"],
   });
@@ -138,10 +152,17 @@ test("version routes are enabled only when the listed directory is available", a
   assert.deepEqual(requestedUrls, [
     "https://example.test/site/translator/",
     "https://example.test/site/translator/3.2.10/",
+    "https://example.test/site/translator/3.3.0b10/",
     "https://example.test/site/translator/missing-version/",
   ]);
   assert.deepEqual({
     recommended: resolved.recommended.map((entry) => ({
+      version: entry.version,
+      href: entry.href,
+      available: entry.available,
+      availabilityKey: entry.availabilityKey,
+    })),
+    recommendedBeta: resolved.recommendedBeta.map((entry) => ({
       version: entry.version,
       href: entry.href,
       available: entry.available,
@@ -164,6 +185,14 @@ test("version routes are enabled only when the listed directory is available", a
       {
         version: "3.2.10",
         href: "translator/",
+        available: true,
+        availabilityKey: "status.available",
+      },
+    ],
+    recommendedBeta: [
+      {
+        version: "3.3.0b10",
+        href: "translator/3.3.0b10/",
         available: true,
         availabilityKey: "status.available",
       },

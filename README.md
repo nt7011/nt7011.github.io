@@ -28,9 +28,11 @@ The actual translator project lives here: [RPG-Maker-Live-Translator](https://gi
 4. Edit `settings.json` and `translator.json` in the UI if needed, then save.
 
 The root page loads `available-versions.json`, links the recommended version to
-`/translator`, and enables stable/prerelease versions only when their
-`/translator/<version>/` route is available. The pinned 3.2.10 installer is
-available at `/translator/3.2.10`.
+`/translator`, and enables recommended beta, stable, and prerelease versions only
+when their `/translator/<version>/` route is available. The pinned 3.2.10
+installer is available at `/translator/3.2.10`. `info/translator-version.json`
+publishes `recommended`, `recommended-beta`, and the backward-compatible
+`version` fallback that tracks `recommended`.
 
 ## Translation providers
 
