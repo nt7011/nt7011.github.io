@@ -17,11 +17,17 @@ import {
   cloneConfigSet,
   configDraftsEqual,
   formatIgnoreTranslationRegexRules,
+  formatPlaintextSubstitutionRules,
+  formatTranslationRegexReplacementRules,
   getValueAtPath,
   mergeConfigDefaults,
   normalizeIgnoreTranslationRegexInput,
+  normalizePlaintextSubstitutionInput,
+  normalizeTranslationRegexReplacementInput,
   setValueAtPath,
   validateIgnoreTranslationRegexValue,
+  validatePlaintextSubstitutionValue,
+  validateTranslationRegexReplacementValue,
   validateNumberValue,
 } from "./config-editor.mjs";
 import {
@@ -63,6 +69,22 @@ const DISABLE_GUI_AUTO_LAUNCH_FIELD = {
 const REINSTALL_DEFAULT_CONFIG_PATHS = [
   ["settings", ...CHECK_UPDATES_FIELD.path],
 ];
+const UPGRADE_DEFAULT_CONFIG_PATHS = [
+  ["settings", "enableForesight"],
+  ["settings", "showForesightSpoilers"],
+  ["settings", "ignoreTranslationRegex"],
+  ["settings", "overrideTranslationRegex"],
+  ["settings", "substitutePlaintextBeforeTranslation"],
+];
+
+const ENABLE_FORESIGHT_FIELD = {
+  id: "enableForesight",
+  path: ["enableForesight"],
+  inputKind: "checkbox",
+  label: "enableForesight",
+  descriptionKey: "field.enableForesight.description",
+  tooltipKey: "field.enableForesight.tooltip",
+};
 
 const TRANSLATION_MAX_OUTPUT_TOKENS_FIELD = {
   id: "translation.maxOutputTokens",
@@ -83,7 +105,49 @@ const IGNORE_TRANSLATION_REGEX_FIELD = {
   inputKind: "regex-list",
   label: "ignoreTranslationRegex",
   descriptionKey: "field.ignoreTranslationRegex.description",
+  placeholderKey: "field.ignoreTranslationRegex.placeholder",
+  summaryKey: "field.ignoreTranslationRegex.summary",
   tooltipKey: "field.ignoreTranslationRegex.tooltip",
+};
+
+const OVERRIDE_TRANSLATION_REGEX_FIELD = {
+  id: "overrideTranslationRegex",
+  path: ["overrideTranslationRegex"],
+  inputKind: "regex-pair-list",
+  label: "overrideTranslationRegex",
+  descriptionKey: "field.overrideTranslationRegex.description",
+  placeholderKey: "field.overrideTranslationRegex.placeholder",
+  summaryKey: "field.overrideTranslationRegex.summary",
+  tooltipKey: "field.overrideTranslationRegex.tooltip",
+};
+
+const SUBSTITUTE_PLAINTEXT_BEFORE_TRANSLATION_FIELD = {
+  id: "substitutePlaintextBeforeTranslation",
+  path: ["substitutePlaintextBeforeTranslation"],
+  inputKind: "plaintext-pair-list",
+  label: "substitutePlaintextBeforeTranslation",
+  descriptionKey: "field.substitutePlaintextBeforeTranslation.description",
+  placeholderKey: "field.substitutePlaintextBeforeTranslation.placeholder",
+  summaryKey: "field.substitutePlaintextBeforeTranslation.summary",
+  tooltipKey: "field.substitutePlaintextBeforeTranslation.tooltip",
+};
+
+const RULE_LIST_FIELD_BEHAVIOR = {
+  ignoreTranslationRegex: {
+    format: formatIgnoreTranslationRegexRules,
+    normalize: normalizeIgnoreTranslationRegexInput,
+    validate: validateIgnoreTranslationRegexValue,
+  },
+  overrideTranslationRegex: {
+    format: formatTranslationRegexReplacementRules,
+    normalize: normalizeTranslationRegexReplacementInput,
+    validate: validateTranslationRegexReplacementValue,
+  },
+  substitutePlaintextBeforeTranslation: {
+    format: formatPlaintextSubstitutionRules,
+    normalize: normalizePlaintextSubstitutionInput,
+    validate: validatePlaintextSubstitutionValue,
+  },
 };
 
 const GAME_MESSAGE_TEXT_SCALE_FIELD = {
@@ -687,7 +751,10 @@ async function refreshInstalledConfigSnapshot(options = {}) {
     return;
   }
 
-  const snapshot = await loadInstalledConfigs(state.rootHandle, state.manifest, { t });
+  const snapshot = await loadInstalledConfigs(state.rootHandle, state.manifest, {
+    defaultMissingConfigPaths: UPGRADE_DEFAULT_CONFIG_PATHS,
+    t,
+  });
   applyConfigSnapshot(snapshot, {
     logWarnings: options.logWarnings ?? true,
     preservedConfigDraft: options.preservedConfigDraft ?? null,
@@ -700,10 +767,19 @@ async function refreshInstalledConfigSnapshot(options = {}) {
 
 function applyConfigSnapshot(snapshot, options = {}) {
   const loadedConfigs = snapshot.configs ? cloneConfigSet(snapshot.configs) : null;
+  const defaultedConfigs = snapshot.defaultedConfigs ? cloneConfigSet(snapshot.defaultedConfigs) : null;
   const configDraft = createConfigDraftFromSnapshot(
     snapshot,
     loadedConfigs,
     options.preservedConfigDraft,
+    defaultedConfigs,
+  );
+  const defaultedDraftApplied = Boolean(
+    snapshot.editable
+      && loadedConfigs
+      && defaultedConfigs
+      && configDraft
+      && !configDraftsEqual(loadedConfigs, configDraft),
   );
   const preservedDraftApplied = Boolean(
     snapshot.editable
@@ -723,8 +799,10 @@ function applyConfigSnapshot(snapshot, options = {}) {
   state.configStatusMessage = snapshot.reason;
   state.configUnsavedMessage = preservedDraftApplied
     ? t("config.status.reinstallPreserved")
+    : defaultedDraftApplied
+      ? t("config.status.upgradeDefaults")
     : "";
-  state.configUnsavedReminderFlashPending = preservedDraftApplied;
+  state.configUnsavedReminderFlashPending = preservedDraftApplied || defaultedDraftApplied;
   state.configErrors = new Set();
 
   renderConfigEditor();
@@ -749,7 +827,7 @@ function getCurrentConfigDraft() {
   return null;
 }
 
-function createConfigDraftFromSnapshot(snapshot, loadedConfigs, preservedConfigDraft) {
+function createConfigDraftFromSnapshot(snapshot, loadedConfigs, preservedConfigDraft, defaultedConfigs) {
   if (!loadedConfigs) {
     return null;
   }
@@ -758,6 +836,10 @@ function createConfigDraftFromSnapshot(snapshot, loadedConfigs, preservedConfigD
     return mergeConfigDefaults(loadedConfigs, preservedConfigDraft, {
       useDefaultForPaths: REINSTALL_DEFAULT_CONFIG_PATHS,
     });
+  }
+
+  if (snapshot.editable && defaultedConfigs) {
+    return cloneConfigSet(defaultedConfigs);
   }
 
   return cloneConfigSet(loadedConfigs);
@@ -1291,7 +1373,11 @@ function renderConfigEditor() {
   settingsConfigFields.classList.toggle("is-locked", editorLocked);
   translatorConfigFields.classList.toggle("is-locked", editorLocked);
   renderSettingsConfig(settingsConfigFields, state.configDraft?.settings);
-  renderTranslatorConfig(translatorConfigFields, state.configDraft?.translator);
+  renderTranslatorConfig(
+    translatorConfigFields,
+    state.configDraft?.translator,
+    state.configDraft?.settings,
+  );
 }
 
 function renderSettingsConfig(container, config) {
@@ -1305,146 +1391,41 @@ function renderSettingsConfig(container, config) {
     return;
   }
 
-  const section = document.createElement("section");
-  section.className = "config-group";
+  const translationSection = createConfigGroup("config.section.translation");
+  translationSection.append(buildConfigFieldRow([
+    { configKey: "settings", config, field: SETTINGS_FIELD },
+    { configKey: "settings", config, field: ENABLE_FORESIGHT_FIELD },
+  ]));
+  container.append(translationSection);
 
-  const heading = document.createElement("h4");
-  heading.className = "config-group-title";
-  heading.textContent = t("config.section.translation");
-  section.append(heading);
-
-  const fieldGrid = document.createElement("div");
-  fieldGrid.className = "config-toggle-grid";
-  fieldGrid.append(
-    buildFieldInput(
-      "settings",
-      SETTINGS_FIELD,
-      getValueAtPath(config, SETTINGS_FIELD.path),
-    ),
+  const textDisplaySection = createConfigGroup(
+    "config.section.textDisplay",
+    "config-group--soft-divider",
   );
+  textDisplaySection.append(buildConfigFieldRow([
+    { configKey: "settings", config, field: GAME_MESSAGE_TEXT_SCALE_FIELD },
+    { configKey: "settings", config, field: TEXT_SCALE_OTHERS_FIELD },
+    { configKey: "settings", config, field: GAME_MESSAGE_ORIGIN_AWARE_LINE_BREAKS_FIELD },
+  ]));
+  container.append(textDisplaySection);
 
-  section.append(fieldGrid);
+  container.append(buildTextManipulationPanel(config));
 
-  const translationFieldGrid = document.createElement("div");
-  translationFieldGrid.className = "config-field-grid";
-  translationFieldGrid.append(
-    buildFieldInput(
-      "settings",
-      TRANSLATION_MAX_OUTPUT_TOKENS_FIELD,
-      getValueAtPath(config, TRANSLATION_MAX_OUTPUT_TOKENS_FIELD.path),
-    ),
+  const appBehaviorSection = createConfigGroup(
+    "config.section.appBehavior",
+    "config-group--soft-divider",
   );
-
-  section.append(translationFieldGrid);
-
-  section.append(buildIgnoreTranslationRegexEditor(config));
-  container.append(section);
-
-  const gameMessageSection = document.createElement("section");
-  gameMessageSection.className = "config-group";
-
-  const gameMessageHeading = document.createElement("h4");
-  gameMessageHeading.className = "config-group-title";
-  gameMessageHeading.textContent = t("config.section.gameMessage");
-  gameMessageSection.append(gameMessageHeading);
-
-  const gameMessageFieldGrid = document.createElement("div");
-  gameMessageFieldGrid.className = "config-field-grid";
-  gameMessageFieldGrid.append(
-    buildFieldInput(
-      "settings",
-      GAME_MESSAGE_TEXT_SCALE_FIELD,
-      getValueAtPath(config, GAME_MESSAGE_TEXT_SCALE_FIELD.path),
-    ),
-  );
-
-  gameMessageSection.append(gameMessageFieldGrid);
-
-  const gameMessageToggleGrid = document.createElement("div");
-  gameMessageToggleGrid.className = "config-toggle-grid";
-  gameMessageToggleGrid.append(
-    buildFieldInput(
-      "settings",
-      GAME_MESSAGE_ORIGIN_AWARE_LINE_BREAKS_FIELD,
-      getValueAtPath(config, GAME_MESSAGE_ORIGIN_AWARE_LINE_BREAKS_FIELD.path),
-    ),
-  );
-
-  gameMessageSection.append(gameMessageToggleGrid);
-  container.append(gameMessageSection);
-
-  const otherTextSection = document.createElement("section");
-  otherTextSection.className = "config-group";
-
-  const otherTextHeading = document.createElement("h4");
-  otherTextHeading.className = "config-group-title";
-  otherTextHeading.textContent = t("config.section.otherText");
-  otherTextSection.append(otherTextHeading);
-
-  const otherTextFieldGrid = document.createElement("div");
-  otherTextFieldGrid.className = "config-field-grid";
-  otherTextFieldGrid.append(
-    buildFieldInput(
-      "settings",
-      TEXT_SCALE_OTHERS_FIELD,
-      getValueAtPath(config, TEXT_SCALE_OTHERS_FIELD.path),
-    ),
-  );
-
-  otherTextSection.append(otherTextFieldGrid);
-  container.append(otherTextSection);
-
-  const guiSection = document.createElement("section");
-  guiSection.className = "config-group";
-
-  const guiHeading = document.createElement("h4");
-  guiHeading.className = "config-group-title";
-  guiHeading.textContent = t("config.section.gui");
-  guiSection.append(guiHeading);
-
-  const guiToggleGrid = document.createElement("div");
-  guiToggleGrid.className = "config-toggle-grid";
-  guiToggleGrid.append(
-    buildFieldInput(
-      "settings",
-      DISABLE_GUI_AUTO_LAUNCH_FIELD,
-      getValueAtPath(config, DISABLE_GUI_AUTO_LAUNCH_FIELD.path),
-    ),
-  );
-
-  guiSection.append(guiToggleGrid);
-  container.append(guiSection);
-
-  const updatesSection = document.createElement("section");
-  updatesSection.className = "config-group";
-
-  const updatesHeading = document.createElement("h4");
-  updatesHeading.className = "config-group-title";
-  updatesHeading.textContent = t("config.section.updates");
-  updatesSection.append(updatesHeading);
-
-  const updatesToggleGrid = document.createElement("div");
-  updatesToggleGrid.className = "config-toggle-grid";
-  updatesToggleGrid.append(
-    buildFieldInput(
-      "settings",
-      CHECK_UPDATES_FIELD,
-      getValueAtPath(config, CHECK_UPDATES_FIELD.path),
-    ),
-  );
-
-  updatesSection.append(updatesToggleGrid);
-  container.append(updatesSection);
+  appBehaviorSection.append(buildConfigFieldRow([
+    { configKey: "settings", config, field: DISABLE_GUI_AUTO_LAUNCH_FIELD },
+    { configKey: "settings", config, field: CHECK_UPDATES_FIELD },
+  ]));
+  container.append(appBehaviorSection);
 }
 
-function renderTranslatorConfig(container, config) {
+function renderTranslatorConfig(container, config, settingsConfig) {
   container.textContent = "";
 
   if (typeof config === "undefined") {
-    const placeholder = document.createElement("p");
-    placeholder.className = "config-empty";
-    placeholder.textContent = t("config.empty");
-    container.append(placeholder);
     return;
   }
 
@@ -1504,10 +1485,90 @@ function renderTranslatorConfig(container, config) {
         getValueAtPath(config, field.path),
       ),
     );
+
+    if (provider === "local" && field.id === "settings.local.repeat_penalty") {
+      fieldGrid.append(
+        buildFieldInput(
+          "settings",
+          TRANSLATION_MAX_OUTPUT_TOKENS_FIELD,
+          getValueAtPath(settingsConfig, TRANSLATION_MAX_OUTPUT_TOKENS_FIELD.path),
+        ),
+      );
+    }
   }
 
   settingsSection.append(fieldGrid);
   container.append(settingsSection);
+}
+
+function createConfigGroup(titleKey, ...classNames) {
+  const section = document.createElement("section");
+  section.className = ["config-group", ...classNames].join(" ");
+
+  const heading = document.createElement("h4");
+  heading.className = "config-group-title";
+  heading.textContent = t(titleKey);
+  section.append(heading);
+
+  return section;
+}
+
+function buildConfigFieldRow(items) {
+  const row = document.createElement("div");
+  row.className = "config-field-row";
+
+  for (const item of items) {
+    row.append(
+      buildFieldInput(
+        item.configKey,
+        item.field,
+        getValueAtPath(item.config, item.field.path),
+      ),
+    );
+  }
+
+  return row;
+}
+
+function buildTextManipulationPanel(config) {
+  const panel = document.createElement("details");
+  panel.className = "config-group config-collapsible config-group--soft-divider";
+  panel.open = hasTextManipulationRules(config);
+
+  const summary = document.createElement("summary");
+  summary.className = "config-collapsible-summary";
+
+  const title = document.createElement("span");
+  title.className = "config-group-title config-collapsible-title";
+  title.textContent = t("config.section.textManipulation");
+  summary.append(title);
+
+  const content = document.createElement("div");
+  content.className = "config-collapsible-content";
+  content.append(
+    buildRuleListEditor(config, IGNORE_TRANSLATION_REGEX_FIELD),
+    buildRuleListEditor(config, OVERRIDE_TRANSLATION_REGEX_FIELD),
+    buildRuleListEditor(config, SUBSTITUTE_PLAINTEXT_BEFORE_TRANSLATION_FIELD),
+  );
+
+  panel.append(summary, content);
+  return panel;
+}
+
+function hasTextManipulationRules(config) {
+  return [
+    IGNORE_TRANSLATION_REGEX_FIELD,
+    OVERRIDE_TRANSLATION_REGEX_FIELD,
+    SUBSTITUTE_PLAINTEXT_BEFORE_TRANSLATION_FIELD,
+  ].some((field) => hasRuleListContent(getValueAtPath(config, field.path)));
+}
+
+function hasRuleListContent(value) {
+  if (Array.isArray(value)) {
+    return getRuleListRuleCount(value) > 0;
+  }
+
+  return typeof value !== "undefined" && value !== null;
 }
 
 function buildProviderToggle(config) {
@@ -1516,8 +1577,17 @@ function buildProviderToggle(config) {
   group.className = "config-radio-group";
 
   for (const option of [
-    { value: "local", label: "local", tooltipKey: "provider.local.tooltip" },
-    { value: "deepl", label: "deepl", tooltipKey: "provider.deepl.tooltip" },
+    {
+      value: "local",
+      label: "local (LM Studio)",
+      tooltipKey: "provider.local.tooltip",
+    },
+    {
+      value: "deepl",
+      label: "deepl",
+      descriptionKey: "provider.deepl.description",
+      tooltipKey: "provider.deepl.tooltip",
+    },
     { value: "none", label: "none", tooltipKey: "provider.none.tooltip" },
   ]) {
     const label = document.createElement("label");
@@ -1542,43 +1612,54 @@ function buildProviderToggle(config) {
     text.textContent = option.label;
     text.title = t(option.tooltipKey);
 
-    label.append(input, text);
+    const optionCopy = document.createElement("span");
+    optionCopy.className = "config-radio-copy";
+    optionCopy.append(text);
+    if (option.descriptionKey) {
+      const description = document.createElement("span");
+      description.className = "config-radio-description";
+      description.textContent = t(option.descriptionKey);
+      optionCopy.append(description);
+    }
+
+    label.append(input, optionCopy);
     group.append(label);
   }
 
   return group;
 }
 
-function buildIgnoreTranslationRegexEditor(config) {
-  const currentValue = getValueAtPath(config, IGNORE_TRANSLATION_REGEX_FIELD.path);
-  const validationErrors = validateIgnoreTranslationRegexValue(currentValue);
+function buildRuleListEditor(config, field) {
+  const behavior = getRuleListFieldBehavior(field);
+  const currentValue = getValueAtPath(config, field.path);
+  const validationErrors = behavior.validate(currentValue);
   const wrapper = document.createElement("div");
   wrapper.className = "config-field config-regex-editor";
-  wrapper.classList.add(getFieldClassName(IGNORE_TRANSLATION_REGEX_FIELD));
+  wrapper.classList.add(getFieldClassName(field));
 
-  const inputId = "settings-ignore-translation-regex";
+  const inputId = `settings-${field.id.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "")}`;
   const feedbackId = `${inputId}-feedback`;
 
   const label = document.createElement("label");
   label.className = "config-label";
   label.setAttribute("for", inputId);
-  label.title = getFieldTooltipText(IGNORE_TRANSLATION_REGEX_FIELD);
+  label.title = getFieldTooltipText(field);
 
   const pathText = document.createElement("code");
-  pathText.textContent = IGNORE_TRANSLATION_REGEX_FIELD.label;
-  pathText.title = getFieldTooltipText(IGNORE_TRANSLATION_REGEX_FIELD);
+  pathText.textContent = field.label;
+  pathText.title = getFieldTooltipText(field);
   label.append(pathText);
   wrapper.append(label);
 
   const textarea = document.createElement("textarea");
   textarea.id = inputId;
-  textarea.rows = getIgnoreTranslationRegexTextareaRows(currentValue);
-  textarea.value = formatIgnoreTranslationRegexRules(currentValue);
-  textarea.placeholder = t("field.ignoreTranslationRegex.placeholder");
+  textarea.rows = getRuleListTextareaRows(field, currentValue);
+  textarea.value = behavior.format(currentValue);
+  textarea.placeholder = field.placeholderKey ? t(field.placeholderKey) : "";
   textarea.spellcheck = false;
   textarea.autocomplete = "off";
   textarea.disabled = !state.configEditable;
-  textarea.title = getFieldTooltipText(IGNORE_TRANSLATION_REGEX_FIELD);
+  textarea.title = getFieldTooltipText(field);
   textarea.setAttribute("aria-describedby", feedbackId);
   textarea.setAttribute("autocapitalize", "none");
   if (validationErrors.length > 0) {
@@ -1589,21 +1670,22 @@ function buildIgnoreTranslationRegexEditor(config) {
   const feedback = document.createElement("div");
   feedback.id = feedbackId;
   feedback.className = "config-regex-feedback";
-  renderIgnoreTranslationRegexFeedback(
+  renderRuleListFeedback(
     feedback,
+    field,
     validationErrors,
-    getIgnoreTranslationRegexRuleCount(currentValue),
+    getRuleListRuleCount(currentValue),
   );
   wrapper.append(feedback);
 
   const description = document.createElement("p");
   description.className = "config-field-description";
-  description.textContent = t(IGNORE_TRANSLATION_REGEX_FIELD.descriptionKey);
+  description.textContent = t(field.descriptionKey);
   wrapper.append(description);
 
   textarea.addEventListener("input", () => {
-    const result = normalizeIgnoreTranslationRegexInput(textarea.value);
-    setValueAtPath(state.configDraft.settings, IGNORE_TRANSLATION_REGEX_FIELD.path, result.rules);
+    const result = behavior.normalize(textarea.value);
+    setValueAtPath(state.configDraft.settings, field.path, result.rules);
 
     if (result.errors.length > 0) {
       textarea.setAttribute("aria-invalid", "true");
@@ -1611,7 +1693,7 @@ function buildIgnoreTranslationRegexEditor(config) {
       textarea.removeAttribute("aria-invalid");
     }
 
-    renderIgnoreTranslationRegexFeedback(feedback, result.errors, result.rules.length);
+    renderRuleListFeedback(feedback, field, result.errors, result.rules.length);
     renderConfigStatus();
     renderActionState();
   });
@@ -1619,7 +1701,7 @@ function buildIgnoreTranslationRegexEditor(config) {
   return wrapper;
 }
 
-function renderIgnoreTranslationRegexFeedback(container, errors, ruleCount) {
+function renderRuleListFeedback(container, field, errors, ruleCount) {
   container.textContent = "";
 
   if (errors.length > 0) {
@@ -1628,7 +1710,7 @@ function renderIgnoreTranslationRegexFeedback(container, errors, ruleCount) {
 
     for (const error of errors.slice(0, 5)) {
       const item = document.createElement("li");
-      item.textContent = getIgnoreTranslationRegexErrorMessage(error);
+      item.textContent = getRuleListErrorMessage(field, error);
       list.append(item);
     }
 
@@ -1637,8 +1719,9 @@ function renderIgnoreTranslationRegexFeedback(container, errors, ruleCount) {
     if (errors.length > 5) {
       const overflow = document.createElement("p");
       overflow.className = "config-field-error";
-      overflow.textContent = t("error.ignoreTranslationRegex.more", {
+      overflow.textContent = t("error.ruleList.more", {
         count: errors.length - 5,
+        field: field.label,
       });
       container.append(overflow);
     }
@@ -1647,15 +1730,92 @@ function renderIgnoreTranslationRegexFeedback(container, errors, ruleCount) {
 
   const summary = document.createElement("p");
   summary.className = "config-regex-summary";
-  summary.textContent = t("field.ignoreTranslationRegex.summary", { count: ruleCount });
+  summary.textContent = t(field.summaryKey, { count: ruleCount });
   container.append(summary);
 }
 
-function getIgnoreTranslationRegexConfigValidationError() {
-  const errors = validateIgnoreTranslationRegexValue(
-    getValueAtPath(state.configDraft.settings, IGNORE_TRANSLATION_REGEX_FIELD.path),
+function getRuleListFieldBehavior(field) {
+  return RULE_LIST_FIELD_BEHAVIOR[field.id];
+}
+
+function getRuleListConfigValidationError(field) {
+  const behavior = getRuleListFieldBehavior(field);
+  const errors = behavior.validate(
+    getValueAtPath(state.configDraft.settings, field.path),
   );
-  return errors.length > 0 ? getIgnoreTranslationRegexErrorMessage(errors[0]) : null;
+  return errors.length > 0 ? getRuleListErrorMessage(field, errors[0]) : null;
+}
+
+function getRuleListErrorMessage(field, error) {
+  if (field.id === IGNORE_TRANSLATION_REGEX_FIELD.id) {
+    return getIgnoreTranslationRegexErrorMessage(error);
+  }
+
+  switch (error?.code) {
+    case "notArray":
+      return t("error.ruleList.notArray", {
+        field: field.label,
+      });
+    case "notObject":
+      return t("error.ruleList.notObject", {
+        field: field.label,
+        line: error.line,
+      });
+    case "notString":
+      return t("error.ruleList.notString", {
+        field: field.label,
+        line: error.line,
+      });
+    case "regexNotString":
+      return t("error.ruleList.regexNotString", {
+        field: field.label,
+        line: error.line,
+      });
+    case "plaintextNotString":
+      return t("error.ruleList.plaintextNotString", {
+        field: field.label,
+        line: error.line,
+      });
+    case "replacementNotString":
+      return t("error.ruleList.replacementNotString", {
+        field: field.label,
+        line: error.line,
+      });
+    case "missingSeparator":
+      return t("error.ruleList.missingSeparator", {
+        field: field.label,
+        line: error.line,
+      });
+    case "quoted":
+      return t("error.ruleList.quoted", {
+        field: field.label,
+        line: error.line,
+      });
+    case "unsupportedFlags":
+      return t("error.ruleList.unsupportedFlags", {
+        field: field.label,
+        flags: error.flags,
+        line: error.line,
+        unsupportedFlags: error.unsupportedFlags || error.flags,
+      });
+    case "invalid":
+      return t("error.ruleList.invalid", {
+        field: field.label,
+        line: error.line,
+        message: error.message,
+      });
+    case "empty":
+      return t("error.ruleList.empty", {
+        field: field.label,
+        line: error.line,
+      });
+    default:
+      return t("error.ruleList.invalid", {
+        field: field.label,
+        line: error?.line ?? "?",
+        message: error?.message ?? t("folder.unknown"),
+      });
+  }
 }
 
 function getIgnoreTranslationRegexErrorMessage(error) {
@@ -1693,16 +1853,23 @@ function getIgnoreTranslationRegexErrorMessage(error) {
   }
 }
 
-function getIgnoreTranslationRegexRuleCount(value) {
+function getRuleListRuleCount(value) {
   if (!Array.isArray(value)) {
     return 0;
   }
 
-  return value.filter((rule) => typeof rule === "string" && rule.trim()).length;
+  return value.filter((rule) => {
+    if (typeof rule === "string") {
+      return Boolean(rule.trim());
+    }
+
+    return Boolean(rule && typeof rule === "object");
+  }).length;
 }
 
-function getIgnoreTranslationRegexTextareaRows(value) {
-  const text = formatIgnoreTranslationRegexRules(value);
+function getRuleListTextareaRows(field, value) {
+  const behavior = getRuleListFieldBehavior(field);
+  const text = behavior.format(value);
   if (!text) {
     return 4;
   }
@@ -2106,9 +2273,15 @@ function getSettingsConfigValidationError() {
     }
   }
 
-  const ignoreTranslationRegexValidationError = getIgnoreTranslationRegexConfigValidationError();
-  if (ignoreTranslationRegexValidationError) {
-    return ignoreTranslationRegexValidationError;
+  for (const field of [
+    IGNORE_TRANSLATION_REGEX_FIELD,
+    OVERRIDE_TRANSLATION_REGEX_FIELD,
+    SUBSTITUTE_PLAINTEXT_BEFORE_TRANSLATION_FIELD,
+  ]) {
+    const ruleListValidationError = getRuleListConfigValidationError(field);
+    if (ruleListValidationError) {
+      return ruleListValidationError;
+    }
   }
 
   return null;

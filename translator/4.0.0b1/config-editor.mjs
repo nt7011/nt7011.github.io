@@ -218,6 +218,51 @@ export function normalizeIgnoreTranslationRegexFlags(rawFlags) {
   };
 }
 
+export function formatTranslationRegexReplacementRules(value) {
+  return formatObjectPairRules(value, "regex", "translation");
+}
+
+export function normalizeTranslationRegexReplacementInput(input) {
+  return normalizeObjectPairRuleInput(input, {
+    leftKey: "regex",
+    rightKey: "translation",
+    validateLeft: validateIgnoreTranslationRegexRule,
+  });
+}
+
+export function validateTranslationRegexReplacementValue(value) {
+  return validateObjectPairRuleValue(value, {
+    leftKey: "regex",
+    leftNotStringCode: "regexNotString",
+    leftEmptyCode: "empty",
+    rightKey: "translation",
+    rightNotStringCode: "replacementNotString",
+    validateLeft: validateIgnoreTranslationRegexRule,
+  });
+}
+
+export function formatPlaintextSubstitutionRules(value) {
+  return formatObjectPairRules(value, "from", "to");
+}
+
+export function normalizePlaintextSubstitutionInput(input) {
+  return normalizeObjectPairRuleInput(input, {
+    leftEmptyCode: "empty",
+    leftKey: "from",
+    rightKey: "to",
+  });
+}
+
+export function validatePlaintextSubstitutionValue(value) {
+  return validateObjectPairRuleValue(value, {
+    leftKey: "from",
+    leftNotStringCode: "plaintextNotString",
+    leftEmptyCode: "empty",
+    rightKey: "to",
+    rightNotStringCode: "replacementNotString",
+  });
+}
+
 function collectFields(value, absolutePath, relativePath) {
   if (isPrimitive(value)) {
     return [createField(absolutePath, value, relativePath)];
@@ -327,6 +372,132 @@ function mergeConfigValue(defaultValue, preservedValue) {
 
 function cloneConfigValue(value) {
   return typeof value === "undefined" ? undefined : cloneConfigSet(value);
+}
+
+function formatObjectPairRules(value, leftKey, rightKey) {
+  if (Array.isArray(value)) {
+    return value.map((rule) => {
+      if (isContainer(rule)) {
+        return `${String(rule[leftKey] ?? "")} => ${String(rule[rightKey] ?? "")}`;
+      }
+
+      return String(rule ?? "");
+    }).join("\n");
+  }
+
+  if (value === null || typeof value === "undefined") {
+    return "";
+  }
+
+  return String(value);
+}
+
+function normalizeObjectPairRuleInput(input, options) {
+  const lines = String(input ?? "").split(/\r\n|\n|\r/u);
+  const rules = [];
+  const errors = [];
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const rawLine = String(lines[index] ?? "");
+    if (!rawLine.trim()) {
+      continue;
+    }
+
+    const line = index + 1;
+    const separatorIndex = rawLine.indexOf("=>");
+    if (separatorIndex < 0) {
+      errors.push({
+        code: "missingSeparator",
+        line,
+      });
+      rules.push({
+        [options.leftKey]: rawLine.trim(),
+      });
+      continue;
+    }
+
+    const left = rawLine.slice(0, separatorIndex).trim();
+    const right = rawLine.slice(separatorIndex + 2).trim();
+    rules.push({
+      [options.leftKey]: left,
+      [options.rightKey]: right,
+    });
+
+    if (!left) {
+      errors.push({
+        code: options.leftEmptyCode ?? "empty",
+        line,
+      });
+      continue;
+    }
+
+    if (typeof options.validateLeft === "function") {
+      errors.push(...options.validateLeft(left, line));
+    }
+  }
+
+  return {
+    errors,
+    rules,
+  };
+}
+
+function validateObjectPairRuleValue(value, options) {
+  if (value === null || typeof value === "undefined" || value === "") {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    return [{ code: "notArray" }];
+  }
+
+  const errors = [];
+  value.forEach((rule, index) => {
+    const line = index + 1;
+    if (!isContainer(rule)) {
+      errors.push({
+        code: "notObject",
+        index,
+        line,
+      });
+      return;
+    }
+
+    const left = rule[options.leftKey];
+    const right = rule[options.rightKey];
+    if (typeof left !== "string") {
+      errors.push({
+        code: options.leftNotStringCode,
+        index,
+        line,
+      });
+      return;
+    }
+
+    if (typeof right !== "string") {
+      errors.push({
+        code: options.rightNotStringCode,
+        index,
+        line,
+      });
+      return;
+    }
+
+    if (!left.trim()) {
+      errors.push({
+        code: options.leftEmptyCode ?? "empty",
+        index,
+        line,
+      });
+      return;
+    }
+
+    if (typeof options.validateLeft === "function") {
+      errors.push(...options.validateLeft(left.trim(), line));
+    }
+  });
+
+  return errors;
 }
 
 function validateIgnoreTranslationRegexRule(rule, line) {

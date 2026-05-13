@@ -579,13 +579,13 @@ button:disabled {
 }
 
 .config-field.checkbox-field {
-  width: fit-content;
-  max-width: 34rem;
+  flex: 1 1 24rem;
+  min-width: min(100%, 18rem);
+  max-width: 100%;
 }
 
 .config-field.checkbox-field.config-field--checkupdates {
-  flex: 1 1 100%;
-  max-width: none;
+  flex-basis: 100%;
 }
 
 .config-field-description {

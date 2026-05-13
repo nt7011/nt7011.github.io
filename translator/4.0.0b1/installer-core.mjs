@@ -274,7 +274,12 @@ export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
   }
 
   const defaultConfigs = await loadBundledDefaultConfigs(manifest, options);
-  const missingFields = getMissingConfigFields(defaultConfigs, configs);
+  const defaulted = applyMissingConfigPathDefaults(
+    defaultConfigs,
+    configs,
+    options.defaultMissingConfigPaths,
+  );
+  const missingFields = getMissingConfigFields(defaultConfigs, defaulted.configs);
   if (missingFields.length > 0) {
     return {
       available: true,
@@ -284,6 +289,8 @@ export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
       missingFields,
       requiresReinstall: true,
       configs,
+      defaultedConfigs: null,
+      defaultedFields: defaulted.defaultedFields,
       supportDirectoryPath,
       reason: t("core.installedConfigMissingFields", {
         fields: missingFields.join(", "),
@@ -300,6 +307,8 @@ export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
     missingFields: [],
     requiresReinstall: false,
     configs,
+    defaultedConfigs: defaulted.defaultedFields.length > 0 ? defaulted.configs : null,
+    defaultedFields: defaulted.defaultedFields,
     supportDirectoryPath,
     reason: t("core.editingInstalledConfigs", { path: supportDirectoryPath }),
     warnings,
@@ -939,6 +948,41 @@ export function getMissingConfigFields(defaultConfigs, installedConfigs) {
   return missingFields;
 }
 
+export function applyMissingConfigPathDefaults(defaultConfigs, installedConfigs, defaultPaths) {
+  const configs = cloneJsonValue(installedConfigs ?? {});
+  const defaultedFields = [];
+
+  if (!Array.isArray(defaultPaths)) {
+    return {
+      configs,
+      defaultedFields,
+    };
+  }
+
+  for (const path of defaultPaths) {
+    if (!Array.isArray(path) || path.length === 0) {
+      continue;
+    }
+
+    const defaultValue = getConfigValueAtPath(defaultConfigs, path);
+    if (typeof defaultValue === "undefined") {
+      continue;
+    }
+
+    if (typeof getConfigValueAtPath(installedConfigs, path) !== "undefined") {
+      continue;
+    }
+
+    setConfigValueAtPath(configs, path, cloneJsonValue(defaultValue));
+    defaultedFields.push(formatDefaultedConfigField(path));
+  }
+
+  return {
+    configs,
+    defaultedFields,
+  };
+}
+
 function getTranslator(options = {}) {
   return typeof options.t === "function" ? options.t : DEFAULT_T;
 }
@@ -981,6 +1025,50 @@ function formatConfigPath(path) {
         ? `${label}.${segment}`
         : segment
   ), "");
+}
+
+function getConfigValueAtPath(target, path) {
+  let current = target;
+  for (const segment of path) {
+    if (current === null || typeof current === "undefined") {
+      return undefined;
+    }
+    current = current[segment];
+  }
+
+  return current;
+}
+
+function setConfigValueAtPath(target, path, value) {
+  if (path.length === 0) {
+    return value;
+  }
+
+  let current = target;
+  for (let index = 0; index < path.length - 1; index += 1) {
+    const segment = path[index];
+    if (!isConfigContainer(current[segment])) {
+      current[segment] = typeof path[index + 1] === "number" ? [] : {};
+    }
+    current = current[segment];
+  }
+
+  current[path[path.length - 1]] = value;
+  return target;
+}
+
+function formatDefaultedConfigField(path) {
+  const [configKey, ...configPath] = path;
+  const fileName = CONFIG_FILE_MAP[configKey] ?? `${configKey}.json`;
+  return `${fileName}:${formatConfigPath(configPath)}`;
+}
+
+function cloneJsonValue(value) {
+  return typeof value === "undefined" ? undefined : JSON.parse(JSON.stringify(value));
+}
+
+function isConfigContainer(value) {
+  return Boolean(value) && typeof value === "object";
 }
 
 function isPlainObject(value) {
