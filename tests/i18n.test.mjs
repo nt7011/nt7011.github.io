@@ -5,7 +5,7 @@ import {
   createTranslator,
   detectPreferredLocale,
   resolveLocale,
-} from "../i18n.mjs";
+} from "../translator/3.2.10/i18n.mjs";
 
 test("detectPreferredLocale prefers Korean when navigator.languages includes ko", () => {
   const locale = detectPreferredLocale({
@@ -52,6 +52,19 @@ test("createTranslator includes cache-only provider copy", () => {
   assert.equal(
     ko("config.section.noneSettings.note"),
     "새 번역 요청을 비활성화하고 translation-cache.log만 사용합니다.",
+  );
+});
+
+test("createTranslator includes installer version summary copy", () => {
+  const en = createTranslator("en-US");
+
+  assert.equal(
+    en("page.version.summary", {
+      latestStableVersion: "3.2.10",
+      installableVersion: "3.2.10",
+      currentVersion: "3.2.9",
+    }),
+    "Latest Stable: 3.2.10\nAbout to Install: 3.2.10\nCurrent Version: 3.2.9",
   );
 });
 

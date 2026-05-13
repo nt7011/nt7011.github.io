@@ -15,11 +15,11 @@ import {
   loadPublishedVersionInfo,
   loadVersionInfo,
   patchEmptyPackageName,
-} from "../installer-core.mjs";
+} from "../translator/3.2.10/installer-core.mjs";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(currentDirectory, "..");
-const testBundleUrl = "https://example.test/live-translator-installer/";
+const testBundleUrl = "https://example.test/translator/3.2.10/live-translator-installer/";
 
 function createTestManifest(overrides = {}) {
   const install = overrides.install ?? {};
@@ -129,12 +129,12 @@ test("loadVersionInfo returns the bundled version when version.json is present",
   globalThis.fetch = async (url, options) => {
     assert.equal(options?.cache, "no-store");
     return createFetchResponse({
-      "/live-translator-installer/version.json": JSON.stringify({ version: "1.12" }),
+      "/translator/3.2.10/live-translator-installer/version.json": JSON.stringify({ version: "1.12" }),
     }, url);
   };
 
   try {
-    const version = await loadVersionInfo("https://example.test/live-translator-installer/version.json");
+    const version = await loadVersionInfo("https://example.test/translator/3.2.10/live-translator-installer/version.json");
     assert.equal(version, "1.12");
   } finally {
     globalThis.fetch = originalFetch;
@@ -146,7 +146,7 @@ test("loadVersionInfo returns null when version.json is missing", async () => {
   globalThis.fetch = async (url) => createFetchResponse({}, url);
 
   try {
-    const version = await loadVersionInfo("https://example.test/live-translator-installer/version.json");
+    const version = await loadVersionInfo("https://example.test/translator/3.2.10/live-translator-installer/version.json");
     assert.equal(version, null);
   } finally {
     globalThis.fetch = originalFetch;
@@ -161,7 +161,10 @@ test("loadPublishedVersionInfo cache-busts the latest version check", async () =
     assert.equal(parsedUrl.searchParams.get("installCheck"), "12345");
     assert.equal(options?.cache, "no-store");
     return createFetchResponse({
-      "/info/translator-version.json": JSON.stringify({ version: "2.4" }),
+      "/info/translator-version.json": JSON.stringify({
+        version: "2.4",
+        recommended: "2.5",
+      }),
     }, url);
   };
 
@@ -170,7 +173,7 @@ test("loadPublishedVersionInfo cache-busts the latest version check", async () =
       "https://example.test/info/translator-version.json",
       { cacheBustValue: 12345 },
     );
-    assert.equal(version, "2.4");
+    assert.equal(version, "2.5");
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -200,7 +203,7 @@ test("loadManifest normalizes the bundle install manifest schema", async () => {
   globalThis.fetch = async (url, options) => {
     assert.equal(options?.cache, "no-store");
     return createFetchResponse({
-      "/live-translator-installer/install-manifest.json": JSON.stringify({
+      "/translator/3.2.10/live-translator-installer/install-manifest.json": JSON.stringify({
         schemaVersion: 2,
         supportDirectory: "live-translator",
         loader: "live-translator-loader.js",
@@ -225,11 +228,11 @@ test("loadManifest normalizes the bundle install manifest schema", async () => {
 
   try {
     const manifest = await loadManifest(
-      "https://example.test/live-translator-installer/install-manifest.json",
+      "https://example.test/translator/3.2.10/live-translator-installer/install-manifest.json",
     );
 
     assert.equal(manifest.loaderFile, "live-translator-loader.js");
-    assert.equal(manifest.bundleUrl, "https://example.test/live-translator-installer/");
+    assert.equal(manifest.bundleUrl, "https://example.test/translator/3.2.10/live-translator-installer/");
     assert.deepEqual(manifest.install.files, ["translator.json", "runtime/paths.js"]);
     assert.deepEqual(manifest.runtime.optionalAssets, ["precacher/precache.json"]);
   } finally {
@@ -255,16 +258,16 @@ test("installGame fetches installer bundle files without cache", async () => {
       pathname,
     });
     return createFetchResponse({
-      "/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
-      "/live-translator-installer/version.json": JSON.stringify({ version: "2.4" }),
-      "/live-translator-installer/settings.json": "{}\n",
-      "/live-translator-installer/translator.json": "{}\n",
+      "/translator/3.2.10/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
+      "/translator/3.2.10/live-translator-installer/version.json": JSON.stringify({ version: "2.4" }),
+      "/translator/3.2.10/live-translator-installer/settings.json": "{}\n",
+      "/translator/3.2.10/live-translator-installer/translator.json": "{}\n",
     }, url);
   };
 
   try {
     await installGame(rootHandle, manifest, {
-      baseUrl: "https://example.test/app.mjs",
+      baseUrl: "https://example.test/translator/3.2.10/app.mjs",
     });
   } finally {
     globalThis.fetch = originalFetch;
@@ -273,19 +276,19 @@ test("installGame fetches installer bundle files without cache", async () => {
   assert.deepEqual(requests, [
     {
       cache: "no-store",
-      pathname: "/live-translator-installer/live-translator-loader.js",
+      pathname: "/translator/3.2.10/live-translator-installer/live-translator-loader.js",
     },
     {
       cache: "no-store",
-      pathname: "/live-translator-installer/version.json",
+      pathname: "/translator/3.2.10/live-translator-installer/version.json",
     },
     {
       cache: "no-store",
-      pathname: "/live-translator-installer/translator.json",
+      pathname: "/translator/3.2.10/live-translator-installer/translator.json",
     },
     {
       cache: "no-store",
-      pathname: "/live-translator-installer/settings.json",
+      pathname: "/translator/3.2.10/live-translator-installer/settings.json",
     },
   ]);
 });
@@ -336,15 +339,15 @@ test("installGame overwrites existing config files during reinstall", async () =
   const defaultTranslator = '{\n    "provider": "local"\n}\n';
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => createFetchResponse({
-    "/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
-    "/live-translator-installer/version.json": JSON.stringify({ version: "2.4" }),
-    "/live-translator-installer/settings.json": defaultSettings,
-    "/live-translator-installer/translator.json": defaultTranslator,
+    "/translator/3.2.10/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
+    "/translator/3.2.10/live-translator-installer/version.json": JSON.stringify({ version: "2.4" }),
+    "/translator/3.2.10/live-translator-installer/settings.json": defaultSettings,
+    "/translator/3.2.10/live-translator-installer/translator.json": defaultTranslator,
   }, url);
 
   try {
     await installGame(rootHandle, manifest, {
-      baseUrl: "https://example.test/app.mjs",
+      baseUrl: "https://example.test/translator/3.2.10/app.mjs",
       overwriteExistingConfigs: true,
     });
   } finally {
@@ -378,15 +381,15 @@ test("installGame copies release settings when development settings are absent",
 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => createFetchResponse({
-    "/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
-    "/live-translator-installer/version.json": JSON.stringify({ version: "2.4" }),
-    "/live-translator-installer/config-templates/settings.release.json": releaseSettings,
-    "/live-translator-installer/translator.json": "{}\n",
+    "/translator/3.2.10/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
+    "/translator/3.2.10/live-translator-installer/version.json": JSON.stringify({ version: "2.4" }),
+    "/translator/3.2.10/live-translator-installer/config-templates/settings.release.json": releaseSettings,
+    "/translator/3.2.10/live-translator-installer/translator.json": "{}\n",
   }, url);
 
   try {
     await installGame(rootHandle, manifest, {
-      baseUrl: "https://example.test/app.mjs",
+      baseUrl: "https://example.test/translator/3.2.10/app.mjs",
     });
   } finally {
     globalThis.fetch = originalFetch;
@@ -411,15 +414,15 @@ test("installGame continues when optional version data is absent", async () => {
 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => createFetchResponse({
-    "/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
-    "/live-translator-installer/settings.json": "{}\n",
-    "/live-translator-installer/translator.json": "{}\n",
+    "/translator/3.2.10/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
+    "/translator/3.2.10/live-translator-installer/settings.json": "{}\n",
+    "/translator/3.2.10/live-translator-installer/translator.json": "{}\n",
   }, url);
 
   let result;
   try {
     result = await installGame(rootHandle, manifest, {
-      baseUrl: "https://example.test/app.mjs",
+      baseUrl: "https://example.test/translator/3.2.10/app.mjs",
     });
   } finally {
     globalThis.fetch = originalFetch;
@@ -459,22 +462,22 @@ test("installGame copies nested support files", async () => {
 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => createFetchResponse({
-    "/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
-    "/live-translator-installer/version.json": JSON.stringify({ version: "2.4" }),
-    "/live-translator-installer/settings.json": "{}\n",
-    "/live-translator-installer/translator.json": "{}\n",
-    "/live-translator-installer/precacher/precacher.js": 'console.log("precacher");\n',
-    "/live-translator-installer/precacher/pretranslator.js": 'console.log("pretranslator");\n',
-    "/live-translator-installer/precacher-ui/app.js": 'console.log("ui app");\n',
-    "/live-translator-installer/precacher-ui/index.html": "<!doctype html>\n",
-    "/live-translator-installer/precacher-ui/style.css": "body {}\n",
-    "/live-translator-installer/precacher-ui-launcher.js": 'console.log("launcher");\n',
+    "/translator/3.2.10/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
+    "/translator/3.2.10/live-translator-installer/version.json": JSON.stringify({ version: "2.4" }),
+    "/translator/3.2.10/live-translator-installer/settings.json": "{}\n",
+    "/translator/3.2.10/live-translator-installer/translator.json": "{}\n",
+    "/translator/3.2.10/live-translator-installer/precacher/precacher.js": 'console.log("precacher");\n',
+    "/translator/3.2.10/live-translator-installer/precacher/pretranslator.js": 'console.log("pretranslator");\n',
+    "/translator/3.2.10/live-translator-installer/precacher-ui/app.js": 'console.log("ui app");\n',
+    "/translator/3.2.10/live-translator-installer/precacher-ui/index.html": "<!doctype html>\n",
+    "/translator/3.2.10/live-translator-installer/precacher-ui/style.css": "body {}\n",
+    "/translator/3.2.10/live-translator-installer/precacher-ui-launcher.js": 'console.log("launcher");\n',
   }, url);
 
   let result;
   try {
     result = await installGame(rootHandle, manifest, {
-      baseUrl: "https://example.test/app.mjs",
+      baseUrl: "https://example.test/translator/3.2.10/app.mjs",
     });
   } finally {
     globalThis.fetch = originalFetch;
@@ -541,16 +544,16 @@ test("installGame removes obsolete files while preserving optional assets", asyn
 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => createFetchResponse({
-    "/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
-    "/live-translator-installer/version.json": JSON.stringify({ version: "2.4" }),
-    "/live-translator-installer/settings.json": "{\"settings\":true}\n",
-    "/live-translator-installer/translator.json": "{\"provider\":\"local\"}\n",
-    "/live-translator-installer/precacher/app.js": "new app\n",
+    "/translator/3.2.10/live-translator-installer/live-translator-loader.js": 'console.log("loader");\n',
+    "/translator/3.2.10/live-translator-installer/version.json": JSON.stringify({ version: "2.4" }),
+    "/translator/3.2.10/live-translator-installer/settings.json": "{\"settings\":true}\n",
+    "/translator/3.2.10/live-translator-installer/translator.json": "{\"provider\":\"local\"}\n",
+    "/translator/3.2.10/live-translator-installer/precacher/app.js": "new app\n",
   }, url);
 
   try {
     await installGame(rootHandle, manifest, {
-      baseUrl: "https://example.test/app.mjs",
+      baseUrl: "https://example.test/translator/3.2.10/app.mjs",
       overwriteExistingConfigs: true,
     });
   } finally {
@@ -586,13 +589,13 @@ test("loadInstalledConfigs reports the installed version file", async () => {
 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => createFetchResponse({
-    "/live-translator-installer/settings.json": "{}\n",
-    "/live-translator-installer/translator.json": "{}\n",
+    "/translator/3.2.10/live-translator-installer/settings.json": "{}\n",
+    "/translator/3.2.10/live-translator-installer/translator.json": "{}\n",
   }, url);
 
   try {
     const snapshot = await loadInstalledConfigs(rootHandle, manifest, {
-      baseUrl: "https://example.test/app.mjs",
+      baseUrl: "https://example.test/translator/3.2.10/app.mjs",
     });
 
     assert.equal(snapshot.installedVersionChecked, true);
@@ -603,8 +606,13 @@ test("loadInstalledConfigs reports the installed version file", async () => {
   }
 });
 
-test("install-manifest.json references files present in the copied support bundle", async () => {
-  const bundleDirectory = path.join(repoRoot, "live-translator-installer");
+test("install-manifest.json references files present in the versioned support bundle", async () => {
+  const bundleDirectory = path.join(
+    repoRoot,
+    "translator",
+    "3.2.10",
+    "live-translator-installer",
+  );
   const manifestPath = path.join(bundleDirectory, "install-manifest.json");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
   const installFiles = new Set(manifest.install.files);

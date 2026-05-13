@@ -243,6 +243,7 @@ const state = {
   configUnsavedReminderFlashPending: false,
   configErrors: new Set(),
   translatorVersion: null,
+  latestStableVersion: null,
   installedTranslatorVersion: null,
   installedVersionChecked: false,
   dllHashCatalog: null,
@@ -306,6 +307,7 @@ function applyDocumentTranslations() {
 
 async function initialize() {
   state.translatorVersion = await loadVersionInfo(INSTALL_VERSION_URL);
+  state.latestStableVersion = await loadPublishedVersionInfo(PUBLISHED_VERSION_URL);
   await initializeDllHashCatalog();
 
   if (!supportsInstallation()) {
@@ -530,6 +532,9 @@ async function handleInstall() {
 
 async function assertInstallableVersionIsCurrent() {
   const publishedVersion = await loadPublishedVersionInfo(PUBLISHED_VERSION_URL);
+  state.latestStableVersion = publishedVersion;
+  renderVersionInfo();
+
   const mismatch = getInstallVersionMismatch(state.translatorVersion, publishedVersion);
   if (!mismatch) {
     return;
@@ -782,30 +787,28 @@ function render() {
 }
 
 function renderVersionInfo() {
+  const latestStableVersion = getDisplayVersion(state.latestStableVersion);
   const installableVersion = getDisplayVersion(state.translatorVersion);
   let tone = "neutral";
-  let message = t("page.version", {
-    version: installableVersion,
-  });
+  const currentVersion = state.installedVersionChecked
+    ? getDisplayVersion(state.installedTranslatorVersion)
+    : t("folder.unknown");
+  const versionForUpdateCheck = state.latestStableVersion ?? state.translatorVersion;
 
-  if (state.installedVersionChecked) {
-    const installedVersion = getDisplayVersion(state.installedTranslatorVersion);
-    if (isVersionOutdated(state.installedTranslatorVersion, state.translatorVersion)) {
-      tone = "warning";
-      message = t("page.version.updateAvailable", {
-        installedVersion,
-        installableVersion,
-      });
-    } else {
-      tone = "success";
-      message = t("page.version.installed", {
-        version: installedVersion,
-      });
-    }
+  if (getInstallVersionMismatch(state.translatorVersion, state.latestStableVersion)) {
+    tone = "warning";
+  } else if (state.installedVersionChecked) {
+    tone = isVersionOutdated(state.installedTranslatorVersion, versionForUpdateCheck)
+      ? "warning"
+      : "success";
   }
 
   setVersionStatusTone(tone);
-  translatorVersion.textContent = message;
+  translatorVersion.textContent = t("page.version.summary", {
+    latestStableVersion,
+    installableVersion,
+    currentVersion,
+  });
 }
 
 function getDisplayVersion(version) {

@@ -5,7 +5,7 @@ import {
   normalizeHashCatalog,
   scanDirectoryDlls,
   scanFileListDlls,
-} from "../scanner/scanner-core.mjs";
+} from "../translator/3.2.10/scanner/scanner-core.mjs";
 
 test("normalizeHashCatalog keeps catalog version metadata", () => {
   const catalog = normalizeHashCatalog({

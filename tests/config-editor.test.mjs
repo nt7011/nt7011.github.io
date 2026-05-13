@@ -14,7 +14,7 @@ import {
   setValueAtPath,
   validateIgnoreTranslationRegexValue,
   validateNumberValue,
-} from "../config-editor.mjs";
+} from "../translator/3.2.10/config-editor.mjs";
 
 test("buildConfigGroups flattens nested objects and arrays into editable fields", () => {
   const groups = buildConfigGroups({

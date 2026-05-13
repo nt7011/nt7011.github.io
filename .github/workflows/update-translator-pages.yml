@@ -22,37 +22,120 @@ jobs:
       - name: Check out Pages repo
         uses: actions/checkout@v6
 
-      - name: Check out translator repo release branch
-        uses: actions/checkout@v6
-        with:
-          repository: nt7011/RPG-Maker-Live-Translator
-          ref: release
-          path: _upstream
-
       - name: Check out cheat installer repo
         uses: actions/checkout@v6
         with:
           repository: nt7011/RPG-Maker-MV-MZ-Cheat-UI-Plugin-Web-Installer
           path: _cheats_upstream
 
-      - name: Copy latest installer folder into the site
+      - name: Copy listed translator payloads into the site
         run: |
+          set -euo pipefail
           rm -rf live-translator-installer
-          cp -R _upstream/live-translator-installer ./live-translator-installer
           rm -f version.json
-          if [ ! -f live-translator-installer/version.json ]; then
-            if [ -f _upstream/version.json ]; then
-              cp _upstream/version.json ./live-translator-installer/version.json
-            else
-              echo "::warning::Missing version.json in _upstream/live-translator-installer and _upstream."
-            fi
+          if [ -d translator ]; then
+            find translator -path '*/live-translator-installer' -type d -prune -exec rm -rf {} +
           fi
           mkdir -p info
-          # Keep the checked-in unavailable fallback unless this publish has a real translator version.
-          if [ -f live-translator-installer/version.json ]; then
-            cp live-translator-installer/version.json ./info/translator-version.json
-          fi
-          rm -rf _upstream
+          node <<'NODE' > _available-translator-versions.json
+          const fs = require("fs");
+          const manifest = JSON.parse(fs.readFileSync("available-versions.json", "utf8"));
+          const pathSafeVersion = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+          function readField(names) {
+            for (const name of names) {
+              if (Object.hasOwn(manifest, name)) {
+                return manifest[name];
+              }
+            }
+            return undefined;
+          }
+
+          function normalizeVersion(value) {
+            return typeof value === "string" ? value.trim() : "";
+          }
+
+          function normalizeVersionList(value) {
+            const values = Array.isArray(value) ? value : typeof value === "string" ? [value] : [];
+            return values.map(normalizeVersion).filter(Boolean);
+          }
+
+          function addVersion(version, source) {
+            if (!pathSafeVersion.test(version)) {
+              throw new Error(`${source} contains an unsafe version path: ${version}`);
+            }
+            if (!versions.includes(version)) {
+              versions.push(version);
+            }
+          }
+
+          const recommended = normalizeVersion(readField(["recommended", "Recommended"]));
+          if (!recommended) {
+            throw new Error("available-versions.json must define one recommended version.");
+          }
+          const recommendedBeta = normalizeVersion(readField([
+            "recommended-beta",
+            "recommendedBeta",
+            "RecommendedBeta",
+            "Recommended-Beta",
+          ]));
+
+          const versions = [];
+          addVersion(recommended, "recommended");
+          if (recommendedBeta) {
+            addVersion(recommendedBeta, "recommended-beta");
+          }
+          for (const version of normalizeVersionList(readField(["stable", "Stable"]))) {
+            addVersion(version, "stable");
+          }
+          for (const version of normalizeVersionList(readField(["prerelease", "Prerelease", "preRelease", "PreRelease"]))) {
+            addVersion(version, "prerelease");
+          }
+
+          process.stdout.write(JSON.stringify({ recommended, recommendedBeta, versions }, null, 2));
+          NODE
+
+          recommended="$(node -e "const data=require('./_available-translator-versions.json'); process.stdout.write(data.recommended);")"
+          mkdir -p _translator_upstream
+          while IFS= read -r version; do
+            branch="dist-$version"
+            source_dir="_translator_upstream/$version"
+            target="./translator/$version"
+
+            echo "Publishing $version from nt7011/RPG-Maker-Live-Translator:$branch"
+            rm -rf "$source_dir"
+            git clone --depth 1 --branch "$branch" https://github.com/nt7011/RPG-Maker-Live-Translator.git "$source_dir"
+
+            if [ ! -d "$source_dir/live-translator-installer" ]; then
+              echo "::error::Missing live-translator-installer in $branch."
+              exit 1
+            fi
+
+            if [ ! -f "$source_dir/live-translator-installer/version.json" ]; then
+              if [ -f "$source_dir/version.json" ]; then
+                cp "$source_dir/version.json" "$source_dir/live-translator-installer/version.json"
+              else
+                echo "::warning::Missing version.json in $branch; writing the available-versions entry."
+                printf '{\n  "version": "%s"\n}\n' "$version" > "$source_dir/live-translator-installer/version.json"
+              fi
+            fi
+
+            mkdir -p "$target"
+            rm -rf "$target/live-translator-installer"
+            cp -R "$source_dir/live-translator-installer" "$target/live-translator-installer"
+
+          done < <(node -e "const data=require('./_available-translator-versions.json'); for (const version of data.versions) console.log(version);")
+
+          node <<'NODE'
+          const fs = require("fs");
+          const data = JSON.parse(fs.readFileSync("_available-translator-versions.json", "utf8"));
+          fs.writeFileSync("info/translator-version.json", JSON.stringify({
+            version: data.recommended,
+            recommended: data.recommended,
+            "recommended-beta": data.recommendedBeta,
+          }, null, 2) + "\n");
+          NODE
+          rm -rf _translator_upstream _available-translator-versions.json
 
       - name: Copy cheat installer into the /cheats subpage
         run: |

@@ -6,7 +6,7 @@ import {
   parseChecksumFile,
   parseNwjsBuildVersion,
   parseReleaseIndex,
-} from "../scanner/download-nwjs-hashes.mjs";
+} from "../translator/3.2.10/scanner/download-nwjs-hashes.mjs";
 
 test("parseReleaseIndex returns NW.js release directories", () => {
   const releases = parseReleaseIndex(`
