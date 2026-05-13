@@ -14,6 +14,8 @@
   --warn: #b45309;
   --error: #b91c1c;
   --success: #15803d;
+  --prerelease: #db2777;
+  --stable: #2563eb;
 }
 
 body {
@@ -144,16 +146,12 @@ h3 {
   color: var(--warn);
 }
 
-.version-index-shell {
-  width: min(760px, calc(100vw - 32px));
-}
-
-.version-index-panel {
-  padding-top: 24px;
-}
-
 .version-index-heading {
-  margin-top: 22px;
+  margin: 0;
+}
+
+.version-index-shell {
+  width: min(672px, calc(100vw - 32px));
 }
 
 .version-index-sections {
@@ -182,6 +180,7 @@ h3 {
   min-height: 60px;
   padding: 12px 14px;
   border: 1px solid var(--border);
+  border-left-width: 6px;
   border-radius: 8px;
   background: #f5f7f6;
   color: var(--text);
@@ -199,6 +198,49 @@ h3 {
   color: var(--muted);
   cursor: not-allowed;
   opacity: 0.72;
+}
+
+.version-index-link.is-category-recommended,
+.version-index-link.is-category-recommended:not(.is-unavailable):hover,
+.version-index-link.is-category-recommended:not(.is-unavailable):focus-visible {
+  border-left-color: var(--success);
+}
+
+.version-index-link.is-category-recommendedBeta,
+.version-index-link.is-category-recommendedBeta:not(.is-unavailable):hover,
+.version-index-link.is-category-recommendedBeta:not(.is-unavailable):focus-visible,
+.version-index-link.is-category-prerelease,
+.version-index-link.is-category-prerelease:not(.is-unavailable):hover,
+.version-index-link.is-category-prerelease:not(.is-unavailable):focus-visible {
+  border-left-color: var(--prerelease);
+}
+
+.version-index-link.is-category-stable,
+.version-index-link.is-category-stable:not(.is-unavailable):hover,
+.version-index-link.is-category-stable:not(.is-unavailable):focus-visible {
+  border-left-color: var(--stable);
+}
+
+.cheats-panel .cheats-link a {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: start;
+  width: 100%;
+  min-height: 60px;
+  padding: 12px 14px;
+  border-color: var(--border);
+  border-left-width: 6px;
+  border-left-color: #7c3aed;
+  background: #f5f7f6;
+  color: var(--text);
+}
+
+.cheats-panel .cheats-link a:hover,
+.cheats-panel .cheats-link a:focus-visible {
+  border-color: var(--accent-strong);
+  border-left-color: #7c3aed;
+  background: #f5f7f6;
+  color: var(--text);
 }
 
 .version-index-main {
@@ -869,16 +911,12 @@ button:disabled {
     padding-top: 12px;
   }
 
+  .version-index-shell {
+    width: min(672px, calc(100vw - 20px));
+  }
+
   .panel {
     padding: 16px;
-  }
-
-  .version-index-link {
-    grid-template-columns: 1fr;
-  }
-
-  .version-index-availability {
-    text-align: left;
   }
 
   .actions {
@@ -952,6 +990,10 @@ button:disabled {
 
   .version-index-shell {
     display: block;
-    width: min(760px, calc(100vw - 48px));
+    width: min(672px, calc(100vw - 48px));
+  }
+
+  .version-index-shell > .panel + .panel {
+    margin-top: 16px;
   }
 }

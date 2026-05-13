@@ -28,14 +28,42 @@ function createLatestTranslatorAliasHtml(versionHtml, recommendedVersion) {
 
 test("root index lists the approved translator version", async () => {
   const html = await readSiteFile("index.html");
+  const css = await readSiteFile("styles.css");
+  const script = await readSiteFile("version-index.mjs");
 
-  assert.match(html, /Web based installer/);
+  assert.match(html, /Browser installer/);
   assert.match(html, /RPG Maker MV\/MZ Live Translator/);
+  assert.match(html, /Choose the game folder and install the/);
+  assert.match(html, /translator plugin/);
   assert.match(html, /Available versions/);
+  assert.match(html, /<main class="app-shell version-index-shell">/);
+  assert.match(html, /class="panel primary-panel"/);
+  assert.match(html, /<section class="panel primary-panel">[\s\S]*?<section class="panel version-index-content"[\s\S]*?<section class="panel cheats-panel"/);
+  assert.match(html, /data-version-i18n-html="page\.intro"/);
+  assert.match(html, /class="panel version-index-content"/);
+  assert.match(html, /data-version-i18n="cheats\.heading"/);
+  assert.match(html, /Install RPG Maker MV\/MZ cheats directly from the browser/);
+  assert.match(html, /data-version-i18n="cheats\.copy"/);
+  assert.match(html, /href="\.\/cheats\/"/);
   assert.match(html, /id="version-index-sections"/);
   assert.match(html, /src="\.\/version-index\.mjs"/);
   assert.match(html, /data-version-i18n="page\.eyebrow"/);
   assert.match(html, /data-version-i18n="page\.heading"/);
+  assert.doesNotMatch(html, /version-index-header/);
+  assert.match(css, /\.version-index-shell/);
+  assert.match(css, /width: min\(672px, calc\(100vw - 32px\)\)/);
+  assert.match(css, /width: min\(672px, calc\(100vw - 20px\)\)/);
+  assert.match(css, /width: min\(672px, calc\(100vw - 48px\)\)/);
+  assert.doesNotMatch(css, /grid-template-columns: 1fr;\s*\}\s*\.version-index-availability/);
+  assert.match(script, /is-category-\$\{entry\.category\}/);
+  assert.match(css, /is-category-recommended/);
+  assert.match(css, /is-category-prerelease/);
+  assert.match(css, /is-category-stable/);
+  assert.match(css, /--prerelease: #db2777/);
+  assert.match(css, /--stable: #2563eb/);
+  assert.match(css, /\.cheats-panel \.cheats-link a/);
+  assert.match(css, /border-left-color: #7c3aed/);
+  assert.doesNotMatch(html, /version-index-panel/);
   assert.doesNotMatch(html, /Choose an approved translator installer version/);
   assert.doesNotMatch(html, /version-index-status/);
   assert.doesNotMatch(html, /Approved versions loaded/);
