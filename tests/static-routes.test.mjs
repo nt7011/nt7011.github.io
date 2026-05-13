@@ -10,18 +10,20 @@ import {
   normalizeAvailableVersionsManifest,
   resolveVersionSections,
 } from "../version-index.mjs";
-import {
-  createVersionAssetUrl,
-  createVersionPageUrl,
-  loadRecommendedTranslatorVersion,
-  rewriteLatestRouteHref,
-} from "../translator/latest.mjs";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(currentDirectory, "..");
 
 async function readSiteFile(...segments) {
   return readFile(path.join(repoRoot, ...segments), "utf8");
+}
+
+function createLatestTranslatorAliasHtml(versionHtml, recommendedVersion) {
+  return versionHtml
+    .replaceAll('href="./styles.css"', `href="./${recommendedVersion}/styles.css"`)
+    .replaceAll('src="./app.mjs"', `src="./${recommendedVersion}/app.mjs"`)
+    .replaceAll('href="../../cheats/"', 'href="../cheats/"')
+    .replaceAll('href="../../"', 'href="../"');
 }
 
 test("root index lists the approved translator version", async () => {
@@ -46,11 +48,16 @@ test("root index lists the approved translator version", async () => {
 test("translator routes serve the installer page with depth-correct assets", async () => {
   const latestHtml = await readSiteFile("translator", "index.html");
   const versionHtml = await readSiteFile("translator", "3.2.10", "index.html");
+  const availableVersions = JSON.parse(await readSiteFile("available-versions.json"));
 
-  assert.match(latestHtml, /Loading translator installer/);
-  assert.match(latestHtml, /src="\.\/latest\.mjs"/);
-  assert.doesNotMatch(latestHtml, /id="pick-folder-button"/);
-  assert.doesNotMatch(latestHtml, /src="\.\/3\.2\.10\/app\.mjs"/);
+  assert.match(latestHtml, /id="pick-folder-button"/);
+  assert.match(latestHtml, /<div class="layout-sidebar">\s*<a class="back-button" href="\.\.\/"[\s\S]*?<section class="panel primary-panel">/);
+  assert.match(latestHtml, /&larr; Back to Version Select/);
+  assert.match(latestHtml, /<section class="panel detected-panel">[\s\S]*?<section class="panel precacher-panel"[\s\S]*?<section class="panel cheats-panel"/);
+  assert.match(latestHtml, /class="back-button" href="\.\.\/"/);
+  assert.match(latestHtml, /href="\.\/3\.2\.10\/styles\.css"/);
+  assert.match(latestHtml, /src="\.\/3\.2\.10\/app\.mjs"/);
+  assert.match(latestHtml, /href="\.\.\/cheats\/"/);
 
   assert.match(versionHtml, /id="pick-folder-button"/);
   assert.match(versionHtml, /<div class="layout-sidebar">\s*<a class="back-button" href="\.\.\/\.\.\/"[\s\S]*?<section class="panel primary-panel">/);
@@ -60,55 +67,10 @@ test("translator routes serve the installer page with depth-correct assets", asy
   assert.match(versionHtml, /href="\.\/styles\.css"/);
   assert.match(versionHtml, /src="\.\/app\.mjs"/);
   assert.match(versionHtml, /href="\.\.\/\.\.\/cheats\/"/);
-});
-
-test("translator latest route resolves and rewrites the recommended version in place", async () => {
-  const requests = [];
-  const version = await loadRecommendedTranslatorVersion({
-    fetchImpl: async (url, options) => {
-      requests.push({ url: String(url), cache: options?.cache });
-      return {
-        ok: true,
-        async json() {
-          return {
-            version: "3.2.9",
-            recommended: "3.2.10",
-            "recommended-beta": "",
-          };
-        },
-      };
-    },
-  });
-
-  assert.equal(version, "3.2.10");
-  assert.deepEqual(requests.map((request) => request.cache), ["no-store"]);
   assert.equal(
-    String(createVersionPageUrl("3.2.10", "https://example.test/translator/latest.mjs")),
-    "https://example.test/translator/3.2.10/index.html",
+    latestHtml,
+    createLatestTranslatorAliasHtml(versionHtml, availableVersions.recommended),
   );
-  assert.equal(
-    String(createVersionAssetUrl("3.2.10", "app.mjs", "https://example.test/translator/latest.mjs")),
-    "https://example.test/translator/3.2.10/app.mjs",
-  );
-  assert.equal(createVersionPageUrl("../unsafe", "https://example.test/translator/latest.mjs"), null);
-  assert.equal(rewriteLatestRouteHref("../../"), "../");
-  assert.equal(rewriteLatestRouteHref("../../cheats/"), "../cheats/");
-  assert.equal(rewriteLatestRouteHref("https://example.test/"), "https://example.test/");
-});
-
-test("translator latest route falls back to available-versions.json", async () => {
-  const version = await loadRecommendedTranslatorVersion({
-    fetchImpl: async (url) => ({
-      ok: !String(url).includes("translator-version"),
-      async json() {
-        return {
-          Recommended: "3.2.10",
-        };
-      },
-    }),
-  });
-
-  assert.equal(version, "3.2.10");
 });
 
 test("translator version metadata matches the approved version folder", async () => {
