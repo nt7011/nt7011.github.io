@@ -4,9 +4,35 @@
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import argparse
+import os
 
 
 class NoCacheHTTPRequestHandler(SimpleHTTPRequestHandler):
+    def send_head(self):
+        path = self.translate_path(self.path)
+        if os.path.isdir(path):
+            for index in ("index.html", "index.htm"):
+                index_path = os.path.join(path, index)
+                if os.path.isfile(index_path):
+                    return self.send_file(index_path)
+
+        return super().send_head()
+
+    def send_file(self, path):
+        try:
+            file_handle = open(path, "rb")
+        except OSError:
+            self.send_error(404, "File not found")
+            return None
+
+        file_stats = os.fstat(file_handle.fileno())
+        self.send_response(200)
+        self.send_header("Content-type", self.guess_type(path))
+        self.send_header("Content-Length", str(file_stats.st_size))
+        self.send_header("Last-Modified", self.date_time_string(file_stats.st_mtime))
+        self.end_headers()
+        return file_handle
+
     def end_headers(self):
         self.send_header(
             "Cache-Control",

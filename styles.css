@@ -144,6 +144,59 @@ h3 {
   color: var(--warn);
 }
 
+.version-index-shell {
+  width: min(760px, calc(100vw - 32px));
+}
+
+.version-index-panel {
+  padding-top: 24px;
+}
+
+.version-index-list {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.version-index-link {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 60px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f5f7f6;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.version-index-link:hover,
+.version-index-link:focus-visible {
+  border-color: var(--accent-strong);
+  outline: none;
+}
+
+.version-index-version {
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.version-index-meta {
+  color: var(--accent-strong);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+.version-index-alias {
+  margin-top: 16px;
+  color: var(--muted);
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -785,6 +838,14 @@ button:disabled {
     padding: 16px;
   }
 
+  .version-index-link {
+    grid-template-columns: 1fr;
+  }
+
+  .version-index-meta {
+    text-align: left;
+  }
+
   .actions {
     flex-direction: column;
   }
@@ -852,5 +913,10 @@ button:disabled {
 
   .layout-sidebar h1 {
     font-size: 1.65rem;
+  }
+
+  .version-index-shell {
+    display: block;
+    width: min(760px, calc(100vw - 48px));
   }
 }

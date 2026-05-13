@@ -22,10 +22,13 @@ The actual translator project lives here: [RPG-Maker-Live-Translator](https://gi
 
 ## How to use
 
-1. Open the page in a supported browser.
+1. Open the root page and choose an approved installer version.
 2. Choose the target game folder.
 3. Install the plugin bundle.
 4. Edit `settings.json` and `translator.json` in the UI if needed, then save.
+
+The latest approved installer is available at `/translator`, and the pinned
+3.2.10 installer is available at `/translator/3.2.10`.
 
 ## Translation providers
 
@@ -34,7 +37,7 @@ The actual translator project lives here: [RPG-Maker-Live-Translator](https://gi
 
 ## Repository layout
 
-- `index.html`, `app.mjs`, `installer-core.mjs`: Browser UI and install logic
+- `index.html`, `translator/`, `app.mjs`, `installer-core.mjs`: Version index, browser UI, and install logic
 - `config-editor.mjs`: Config field helpers
 - `i18n.mjs`: English and Korean UI strings
 - `scanner/`: NW.js DLL scanner, bundled hash catalog, and catalog download script
