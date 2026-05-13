@@ -70,6 +70,28 @@ body {
   padding-top: 24px;
 }
 
+.back-button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 30px;
+  margin-bottom: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--accent-strong);
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.back-button:hover,
+.back-button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .eyebrow {
   margin: 0 0 8px;
   color: var(--accent-strong);

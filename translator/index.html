@@ -9,6 +9,7 @@
   <body>
     <main class="app-shell">
       <div class="layout-sidebar">
+        <a class="back-button" href="../" data-i18n="nav.goBack">&larr; Back to Version Select</a>
         <section class="panel primary-panel">
           <p class="eyebrow" data-i18n="page.eyebrow">Browser installer</p>
           <h1 data-i18n="page.heading">RPG Maker MV/MZ Live Translator</h1>
@@ -87,6 +88,15 @@ Current Version: Unknown</p>
           </div>
         </section>
 
+        <section class="panel precacher-panel" aria-labelledby="precacher-panel-heading">
+          <h2 id="precacher-panel-heading" class="precacher-panel-title">
+            <span data-i18n="precacher.heading">Precacher</span>
+            <span class="beta-pill" data-i18n="precacher.beta">Beta</span>
+          </h2>
+          <p data-i18n-html="precacher.description">Precacher reads static texts from the disk and pre-translates them, so that translations appear instantly.<br>After launching the game, press <code>Control-Shift-P</code> to open up the dashboard.</p>
+          <p class="precacher-panel-warning" data-i18n="precacher.warning">Reminder: Dynamic texts are not supported and will never be!</p>
+        </section>
+
         <section class="panel cheats-panel" aria-labelledby="cheats-panel-heading">
           <h2 id="cheats-panel-heading" data-i18n="cheats.heading">Install Cheats</h2>
           <p data-i18n="cheats.copy">Easily install cheats the same way.</p>
@@ -97,15 +107,6 @@ Current Version: Unknown</p>
       </div>
 
       <div class="layout-main">
-        <section class="panel precacher-panel" aria-labelledby="precacher-panel-heading">
-          <h2 id="precacher-panel-heading" class="precacher-panel-title">
-            <span data-i18n="precacher.heading">Precacher</span>
-            <span class="beta-pill" data-i18n="precacher.beta">Beta</span>
-          </h2>
-          <p data-i18n-html="precacher.description">Precacher reads static texts from the disk and pre-translates them, so that translations appear instantly.<br>After launching the game, press <code>Control-Shift-P</code> to open up the dashboard.</p>
-          <p class="precacher-panel-warning" data-i18n="precacher.warning">Reminder: Dynamic texts are not supported and will never be!</p>
-        </section>
-
         <section class="panel configuration-panel">
           <div class="section-heading">
             <div>

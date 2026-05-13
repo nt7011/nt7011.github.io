@@ -42,11 +42,19 @@ test("translator routes serve the installer page with depth-correct assets", asy
   const versionHtml = await readSiteFile("translator", "3.2.10", "index.html");
 
   assert.match(latestHtml, /id="pick-folder-button"/);
+  assert.match(latestHtml, /<div class="layout-sidebar">\s*<a class="back-button" href="\.\.\/"[\s\S]*?<section class="panel primary-panel">/);
+  assert.match(latestHtml, /&larr; Back to Version Select/);
+  assert.match(latestHtml, /<section class="panel detected-panel">[\s\S]*?<section class="panel precacher-panel"[\s\S]*?<section class="panel cheats-panel"/);
+  assert.match(latestHtml, /class="back-button" href="\.\.\/"/);
   assert.match(latestHtml, /href="\.\/3\.2\.10\/styles\.css"/);
   assert.match(latestHtml, /src="\.\/3\.2\.10\/app\.mjs"/);
   assert.match(latestHtml, /href="\.\.\/cheats\/"/);
 
   assert.match(versionHtml, /id="pick-folder-button"/);
+  assert.match(versionHtml, /<div class="layout-sidebar">\s*<a class="back-button" href="\.\.\/\.\.\/"[\s\S]*?<section class="panel primary-panel">/);
+  assert.match(versionHtml, /&larr; Back to Version Select/);
+  assert.match(versionHtml, /<section class="panel detected-panel">[\s\S]*?<section class="panel precacher-panel"[\s\S]*?<section class="panel cheats-panel"/);
+  assert.match(versionHtml, /class="back-button" href="\.\.\/\.\.\/"/);
   assert.match(versionHtml, /href="\.\/styles\.css"/);
   assert.match(versionHtml, /src="\.\/app\.mjs"/);
   assert.match(versionHtml, /href="\.\.\/\.\.\/cheats\/"/);
