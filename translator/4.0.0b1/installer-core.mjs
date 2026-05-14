@@ -1,13 +1,18 @@
 import { createTranslator } from "./i18n.mjs";
 
-export const LOADER_PLUGIN_NAME = "live-translator-loader";
+export const LOADER_PLUGIN_NAME = "live-translator/live-translator-loader";
+export const LEGACY_LOADER_PLUGIN_NAME = "live-translator-loader";
 export const VERSION_FILE_NAME = "version.json";
 export const INSTALL_MANIFEST_URL = new URL(
-  "./live-translator-installer/install-manifest.json",
+  "./live-translator/install-manifest.json",
+  import.meta.url,
+);
+export const INSTALL_FILE_INDEX_URL = new URL(
+  "./live-translator-files.json",
   import.meta.url,
 );
 export const INSTALL_VERSION_URL = new URL(
-  `./live-translator-installer/${VERSION_FILE_NAME}`,
+  `./live-translator/${VERSION_FILE_NAME}`,
   import.meta.url,
 );
 export const PUBLISHED_VERSION_URL = new URL(
@@ -21,7 +26,8 @@ export const CONFIG_FILE_MAP = Object.freeze({
 });
 
 const CONFIG_FILE_NAMES = new Set(Object.values(CONFIG_FILE_MAP));
-const DEFAULT_PLUGIN_ENTRY = "{\"name\":\"live-translator-loader\",\"status\":true,\"description\":\"Entry point for the live translation system\",\"parameters\":{}},";
+const INSTALL_MANIFEST_FILE_NAME = "install-manifest.json";
+const DEFAULT_PLUGIN_DESCRIPTION = "Entry point for the live translation system";
 const DEFAULT_T = createTranslator("en");
 
 export function patchEmptyPackageName(text) {
@@ -35,8 +41,13 @@ export function patchEmptyPackageName(text) {
   };
 }
 
-export function injectPluginEntry(text, entry, warningMessage = "Unable to inject plugin entry into plugins.js automatically.") {
-  if (text.includes(LOADER_PLUGIN_NAME)) {
+export function injectPluginEntry(
+  text,
+  entry,
+  warningMessage = "Unable to inject plugin entry into plugins.js automatically.",
+  pluginEntryName = LOADER_PLUGIN_NAME,
+) {
+  if (hasPluginEntryName(text, pluginEntryName)) {
     return { changed: false, alreadyPresent: true, text };
   }
 
@@ -57,6 +68,49 @@ export function injectPluginEntry(text, entry, warningMessage = "Unable to injec
   };
 }
 
+function hasPluginEntryName(text, pluginEntryName) {
+  return createPluginEntryNamePattern(pluginEntryName).test(text);
+}
+
+function replacePluginEntryName(text, oldName, newName) {
+  return text.replace(createPluginEntryNamePattern(oldName), `$1${newName}$2`);
+}
+
+function createPluginEntryNamePattern(pluginEntryName) {
+  return new RegExp(`("name"\\s*:\\s*")${escapeRegExp(pluginEntryName)}(")`);
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function createPluginEntry(pluginEntryName) {
+  return `${JSON.stringify({
+    name: pluginEntryName,
+    status: true,
+    description: DEFAULT_PLUGIN_DESCRIPTION,
+    parameters: {},
+  })},`;
+}
+
+function derivePluginEntryName(supportDirectory, loaderFile) {
+  return normalizePluginEntryName(`${supportDirectory}/${stripJavaScriptExtension(loaderFile)}`);
+}
+
+function deriveLegacyPluginEntryName(loaderFile) {
+  const normalized = normalizeSupportFilePath(loaderFile);
+  const fileName = normalized.split("/").at(-1);
+  return normalizePluginEntryName(stripJavaScriptExtension(fileName));
+}
+
+function stripJavaScriptExtension(filePath) {
+  return String(filePath).replace(/\.js$/i, "");
+}
+
+function normalizePluginEntryName(name) {
+  return normalizeSupportFilePath(name);
+}
+
 export async function loadManifest(url = INSTALL_MANIFEST_URL, options = {}) {
   const t = getTranslator(options);
   const response = await fetch(url, { cache: "no-store" });
@@ -64,10 +118,33 @@ export async function loadManifest(url = INSTALL_MANIFEST_URL, options = {}) {
     throw new Error(t("core.loadManifestFailed", { status: response.status }));
   }
 
-  return normalizeInstallManifest(await response.json(), url);
+  const manifest = await response.json();
+  const fileIndex = await loadInstallFileIndex(manifest, url, options);
+  return normalizeInstallManifest(manifest, url, { fileIndex });
 }
 
-function normalizeInstallManifest(manifest, manifestUrl) {
+async function loadInstallFileIndex(manifest, manifestUrl, options = {}) {
+  if (Array.isArray(manifest?.install?.files)) {
+    return null;
+  }
+
+  const indexUrl = options.fileIndexUrl
+    ? new URL(options.fileIndexUrl, manifestUrl)
+    : new URL("../live-translator-files.json", manifestUrl);
+  const response = await fetch(indexUrl, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Failed to load live-translator file index: ${response.status}`);
+  }
+
+  const index = await response.json();
+  if (!index || !Array.isArray(index.files)) {
+    throw new Error("live-translator file index is invalid.");
+  }
+
+  return index.files;
+}
+
+function normalizeInstallManifest(manifest, manifestUrl, options = {}) {
   if (!manifest || typeof manifest !== "object") {
     throw new Error("install-manifest.json is invalid.");
   }
@@ -78,27 +155,45 @@ function normalizeInstallManifest(manifest, manifestUrl) {
   const runtime = manifest.runtime && typeof manifest.runtime === "object"
     ? manifest.runtime
     : {};
-  const settings = install.settings && typeof install.settings === "object"
-    ? install.settings
-    : {};
+  const hasInstallSettings = install.settings && typeof install.settings === "object";
+  const settings = hasInstallSettings ? install.settings : {};
+  const loaderFile = normalizeSupportFilePath(manifest.loader);
+  const supportDirectory = normalizeSupportDirectoryName(manifest.supportDirectory);
+  const pluginEntryName = normalizePluginEntryName(
+    manifest.pluginEntryName ?? derivePluginEntryName(supportDirectory, loaderFile),
+  );
+  const legacyPluginEntryName = normalizePluginEntryName(
+    manifest.legacyPluginEntryName ?? deriveLegacyPluginEntryName(loaderFile),
+  );
+  const installFiles = uniqueSupportFileList([
+    loaderFile,
+    INSTALL_MANIFEST_FILE_NAME,
+    ...normalizeSupportFileList(install.files ?? options.fileIndex ?? []),
+  ]);
+  const normalizedInstall = {
+    ...install,
+    files: installFiles,
+    obsolete: normalizeSupportFileList(install.obsolete ?? manifest.obsoleteSupportPaths ?? []),
+  };
+
+  if (hasInstallSettings) {
+    normalizedInstall.settings = {
+      developmentSource: normalizeSupportFilePath(settings.developmentSource),
+      releaseSource: normalizeSupportFilePath(settings.releaseSource),
+      destination: normalizeSupportFilePath(settings.destination),
+    };
+  }
 
   return {
     ...manifest,
-    loader: normalizeSupportFilePath(manifest.loader),
-    loaderFile: normalizeSupportFilePath(manifest.loader),
-    supportDirectory: normalizeSupportDirectoryName(manifest.supportDirectory),
-    pluginEntry: manifest.pluginEntry ?? DEFAULT_PLUGIN_ENTRY,
+    loader: loaderFile,
+    loaderFile,
+    supportDirectory,
+    pluginEntryName,
+    legacyPluginEntryName,
+    pluginEntry: manifest.pluginEntry ?? createPluginEntry(pluginEntryName),
     bundleUrl: new URL("./", manifestUrl).href,
-    install: {
-      ...install,
-      files: normalizeSupportFileList(install.files),
-      obsolete: normalizeSupportFileList(install.obsolete ?? []),
-      settings: {
-        developmentSource: normalizeSupportFilePath(settings.developmentSource),
-        releaseSource: normalizeSupportFilePath(settings.releaseSource),
-        destination: normalizeSupportFilePath(settings.destination),
-      },
-    },
+    install: normalizedInstall,
     runtime: {
       ...runtime,
       requiredAssets: normalizeSupportFileList(runtime.requiredAssets ?? []),
@@ -141,7 +236,10 @@ export async function loadPublishedVersionInfo(url = PUBLISHED_VERSION_URL, opti
     }
 
     const data = await response.json();
-    const version = normalizeVersion(data?.recommended) ?? normalizeVersion(data?.version);
+    const version = normalizeVersion(data?.["recommended-beta"])
+      ?? normalizeVersion(data?.recommendedBeta)
+      ?? normalizeVersion(data?.version)
+      ?? normalizeVersion(data?.recommended);
 
     return version === PUBLISHED_VERSION_UNAVAILABLE ? null : version;
   } catch {
@@ -512,15 +610,6 @@ export async function installGame(rootHandle, manifest, options = {}) {
     log(t("core.packageJsonNotFound"), "warning");
   }
 
-  const loaderHandle = await inspection.pluginsDirHandle.getFileHandle(manifest.loaderFile, {
-    create: true,
-  });
-  await writeBytes(loaderHandle, bundle.loader.bytes);
-  log(t("core.copiedLoader", {
-    fileName: manifest.loaderFile,
-    path: inspection.pluginsDirPath,
-  }), "success");
-
   const existingSupportDir = await tryGetDirectoryHandle(
     inspection.pluginsDirHandle,
     manifest.supportDirectory,
@@ -546,12 +635,14 @@ export async function installGame(rootHandle, manifest, options = {}) {
     });
   }
 
-  supportFilesCopied += await writeSupportBundleFile(supportDirHandle, bundle.settings, {
-    log,
-    overwriteExistingConfigs,
-    supportDirectoryPath: `${inspection.pluginsDirPath}/${manifest.supportDirectory}`,
-    t,
-  });
+  if (bundle.settings) {
+    supportFilesCopied += await writeSupportBundleFile(supportDirHandle, bundle.settings, {
+      log,
+      overwriteExistingConfigs,
+      supportDirectoryPath: `${inspection.pluginsDirPath}/${manifest.supportDirectory}`,
+      t,
+    });
+  }
 
   await removeObsoleteSupportPaths(supportDirHandle, manifest, {
     log,
@@ -572,10 +663,14 @@ export async function installGame(rootHandle, manifest, options = {}) {
     }), "success");
   }
 
+  await removeObsoleteInstallerCopy(rootHandle, { log, t });
+
   const pluginsData = await readTextFile(inspection.pluginsFileHandle);
   let pluginEntryAdded = false;
+  const pluginEntryName = manifest.pluginEntryName ?? LOADER_PLUGIN_NAME;
+  const legacyPluginEntryName = manifest.legacyPluginEntryName ?? LEGACY_LOADER_PLUGIN_NAME;
 
-  if (pluginsData.text.includes(LOADER_PLUGIN_NAME)) {
+  if (hasPluginEntryName(pluginsData.text, pluginEntryName)) {
     log(t("core.pluginEntryAlreadyExists", { path: inspection.pluginsFilePath }), "info");
   } else {
     log(t("core.addingPluginEntry", { path: inspection.pluginsFilePath }), "info");
@@ -586,16 +681,27 @@ export async function installGame(rootHandle, manifest, options = {}) {
     await writeBytes(pluginsBackupHandle, pluginsData.bytes);
     log(t("core.backupCreated", { path: `${inspection.pluginsFilePath}.backup` }), "info");
 
-    const updatedPlugins = injectPluginEntry(
-      pluginsData.text,
-      manifest.pluginEntry,
-      t("core.injectPluginEntryFailure"),
-    );
-    if (!updatedPlugins.changed) {
-      throw new Error(updatedPlugins.warning);
+    if (legacyPluginEntryName && hasPluginEntryName(pluginsData.text, legacyPluginEntryName)) {
+      const updatedText = replacePluginEntryName(
+        pluginsData.text,
+        legacyPluginEntryName,
+        pluginEntryName,
+      );
+      await writeTextFile(inspection.pluginsFileHandle, updatedText, pluginsData.hasBom);
+    } else {
+      const updatedPlugins = injectPluginEntry(
+        pluginsData.text,
+        manifest.pluginEntry,
+        t("core.injectPluginEntryFailure"),
+        pluginEntryName,
+      );
+      if (!updatedPlugins.changed) {
+        throw new Error(updatedPlugins.warning);
+      }
+
+      await writeTextFile(inspection.pluginsFileHandle, updatedPlugins.text, pluginsData.hasBom);
     }
 
-    await writeTextFile(inspection.pluginsFileHandle, updatedPlugins.text, pluginsData.hasBom);
     pluginEntryAdded = true;
     log(t("core.pluginEntryAdded", { path: inspection.pluginsFilePath }), "success");
   }
@@ -603,7 +709,7 @@ export async function installGame(rootHandle, manifest, options = {}) {
   return {
     packageUpdates,
     pluginEntryAdded,
-    filesCopied: 1 + versionFilesCopied + supportFilesCopied,
+    filesCopied: versionFilesCopied + supportFilesCopied,
     supportDirectory: `${inspection.pluginsDirPath}/${manifest.supportDirectory}`,
   };
 }
@@ -703,13 +809,19 @@ async function removeObsoleteSupportPaths(supportDirHandle, manifest, options = 
   }
 }
 
+async function removeObsoleteInstallerCopy(rootHandle, options = {}) {
+  const { log = () => {}, t } = options;
+  const removed = await removeEntryAtPath(rootHandle, "live-translator-installer");
+  if (removed) {
+    log(t("core.removedObsoleteInstallerCopy"), "success");
+  }
+}
+
 async function fetchInstallerBundle(manifest, baseUrl, t) {
   const bundleUrl = getBundleUrl(manifest, baseUrl);
-  const loader = {
-    name: manifest.loaderFile,
-    bytes: await fetchAssetBytes(new URL(manifest.loaderFile, bundleUrl), t),
-  };
-  const versionBytes = await fetchOptionalAssetBytes(new URL(VERSION_FILE_NAME, bundleUrl));
+  const versionBytes = manifest.install.files.includes(VERSION_FILE_NAME)
+    ? null
+    : await fetchOptionalAssetBytes(new URL(VERSION_FILE_NAME, bundleUrl));
   const version = versionBytes
     ? {
         name: VERSION_FILE_NAME,
@@ -726,9 +838,11 @@ async function fetchInstallerBundle(manifest, baseUrl, t) {
       };
     }),
   );
-  const settings = await fetchSettingsBundleFile(manifest, bundleUrl, t);
+  const settings = manifest.install.settings
+    ? await fetchSettingsBundleFile(manifest, bundleUrl, t)
+    : null;
 
-  return { loader, settings, supportFiles, version };
+  return { settings, supportFiles, version };
 }
 
 async function loadBundledDefaultConfigs(manifest, options = {}) {
@@ -738,7 +852,7 @@ async function loadBundledDefaultConfigs(manifest, options = {}) {
   const defaults = {};
 
   for (const [configKey, fileName] of Object.entries(CONFIG_FILE_MAP)) {
-    const text = configKey === "settings"
+    const text = configKey === "settings" && manifest.install.settings
       ? await fetchSettingsBundleText(manifest, bundleUrl, t)
       : await fetchAssetText(new URL(fileName, bundleUrl), t);
 
@@ -861,7 +975,7 @@ function getBundleUrl(manifest, baseUrl) {
     return new URL(manifest.bundleUrl);
   }
 
-  return new URL("./live-translator-installer/", baseUrl);
+  return new URL("./live-translator/", baseUrl);
 }
 
 async function readTextFile(fileHandle) {
@@ -1171,6 +1285,10 @@ function normalizeSupportFileList(paths) {
   }
 
   return paths.map((filePath) => normalizeSupportFilePath(filePath));
+}
+
+function uniqueSupportFileList(paths) {
+  return [...new Set(normalizeSupportFileList(paths))];
 }
 
 function normalizeSupportDirectoryName(name) {

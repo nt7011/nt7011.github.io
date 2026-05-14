@@ -384,7 +384,7 @@ async function initialize() {
     state.manifest = await loadManifest(INSTALL_MANIFEST_URL, { t });
     pushLog(
       t("log.bundleLoaded", {
-        count: state.manifest.install.files.length + 3,
+        count: state.manifest.install.files.length + (state.manifest.install.settings ? 1 : 0),
       }),
       "info",
     );
