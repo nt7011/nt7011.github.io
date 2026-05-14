@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run dev server",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/dev-server.py",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "--bind",
+        "127.0.0.1",
+        "4173"
+      ],
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ]
+}

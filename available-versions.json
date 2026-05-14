@@ -4,5 +4,7 @@
   "stable": [
     "3.2.10"
   ],
-  "prerelease": []
+  "prerelease": [
+    ""
+  ]
 }

@@ -20,8 +20,11 @@ test("Pages workflow publishes translator version data for install and static ch
   assert.match(workflow, /recommendedBeta/);
   assert.match(workflow, /stable/);
   assert.match(workflow, /prerelease/);
-  assert.match(workflow, /branch="dist-\$version"/);
-  assert.match(workflow, /git clone --depth 1 --branch "\$branch" https:\/\/github\.com\/nt7011\/RPG-Maker-Live-Translator\.git "\$source_dir"/);
+  assert.match(workflow, /release_branch="release"/);
+  assert.match(workflow, /tag="dist-\$version"/);
+  assert.match(workflow, /git clone --depth 1 --branch "\$release_branch" --no-tags https:\/\/github\.com\/nt7011\/RPG-Maker-Live-Translator\.git "\$source_dir"/);
+  assert.match(workflow, /git -C "\$source_dir" fetch --depth 1 origin "refs\/tags\/\$tag:refs\/tags\/\$tag"/);
+  assert.match(workflow, /git -C "\$source_dir" checkout --detach "\$tag"/);
   assert.match(workflow, /translator\/\$version/);
   assert.match(workflow, /find translator -path '\*\/live-translator-installer'/);
   assert.match(workflow, /cp "\$source_dir\/version\.json" "\$source_dir\/live-translator-installer\/version\.json"/);
@@ -38,7 +41,9 @@ test("Pages workflow publishes translator version data for install and static ch
   assert.match(workflow, /recommended: data\.recommended/);
   assert.match(workflow, /"recommended-beta": data\.recommendedBeta/);
   assert.match(workflow, /::warning::Missing version\.json/);
-  assert.match(workflow, /::error::Missing live-translator-installer in \$branch\./);
+  assert.match(workflow, /::error::Missing live-translator-installer in \$tag\./);
+  assert.doesNotMatch(workflow, /branch="dist-\$version"/);
+  assert.doesNotMatch(workflow, /git clone --depth 1 --branch "\$branch"/);
   assert.doesNotMatch(workflow, /rm -f info\/translator-version\.json/);
   assert.doesNotMatch(workflow, /test -f live-translator-installer\/version\.json/);
   assert.doesNotMatch(workflow, /ref: release/);

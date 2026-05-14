@@ -462,6 +462,12 @@ button:disabled {
   margin-top: 16px;
 }
 
+.config-fields--translation:not(:empty) {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px dashed color-mix(in srgb, var(--border) 75%, transparent);
+}
+
 .precacher-panel {
   border: 1px solid #99d1c8;
   border-left: 4px solid var(--accent);
@@ -524,6 +530,11 @@ button:disabled {
   margin-top: 20px;
 }
 
+.config-group--soft-divider {
+  padding-top: 18px;
+  border-top: 1px dashed color-mix(in srgb, var(--border) 75%, transparent);
+}
+
 .config-group-title {
   margin-bottom: 12px;
   text-transform: capitalize;
@@ -541,9 +552,57 @@ button:disabled {
   gap: 12px;
 }
 
+.config-field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: 0;
+  align-items: start;
+}
+
+.config-field-row > .config-field {
+  min-width: 0;
+  padding-right: 16px;
+  padding-left: 16px;
+}
+
+.config-field-row > .config-field:first-child {
+  padding-left: 0;
+}
+
+.config-field-row > .config-field:last-child {
+  padding-right: 0;
+}
+
+.config-field-row > .config-field + .config-field {
+  border-left: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+}
+
+.config-collapsible {
+  display: block;
+}
+
+.config-collapsible-summary {
+  min-height: 32px;
+  cursor: pointer;
+}
+
+.config-collapsible-summary::marker {
+  color: var(--muted);
+}
+
+.config-collapsible-title {
+  margin-bottom: 0;
+  margin-left: 8px;
+  text-transform: none;
+}
+
+.config-collapsible-content {
+  margin-top: 12px;
+}
+
 @media (min-width: 760px) {
   .local-settings-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     align-items: start;
   }
 
@@ -551,9 +610,12 @@ button:disabled {
     min-width: 0;
   }
 
-  .local-settings-grid .config-field--settings-local-address,
-  .local-settings-grid .config-field--settings-local-model {
+  .local-settings-grid .config-field--settings-local-address {
     grid-column: span 2;
+  }
+
+  .local-settings-grid .config-field--settings-local-model {
+    grid-column: span 3;
   }
 
   .local-settings-grid .config-field--settings-local-system-prompt {
@@ -562,6 +624,24 @@ button:disabled {
 
   .local-settings-grid .config-field--settings-local-system-prompt textarea {
     min-height: 144px;
+  }
+}
+
+@media (max-width: 720px) {
+  .config-field-row {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .config-field-row > .config-field {
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .config-field-row > .config-field + .config-field {
+    padding-top: 14px;
+    border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+    border-left: 0;
   }
 }
 
@@ -640,7 +720,7 @@ button:disabled {
 
 .config-radio-option {
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   min-height: 44px;
   font-weight: 600;
@@ -649,7 +729,21 @@ button:disabled {
 .config-radio-option input {
   width: 18px;
   height: 18px;
-  margin: 0;
+  margin: 13px 0 0;
+}
+
+.config-radio-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 44px;
+  justify-content: center;
+}
+
+.config-radio-description {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 400;
 }
 
 .config-field input,

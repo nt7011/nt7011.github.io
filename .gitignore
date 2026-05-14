@@ -2,5 +2,7 @@ game_example*/
 live-translator-installer*/
 .codex
 .vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
 translator/*/live-translator-installer*/
 info/translator-version.json
