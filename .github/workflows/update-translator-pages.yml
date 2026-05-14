@@ -98,16 +98,19 @@ jobs:
           recommended="$(node -e "const data=require('./_available-translator-versions.json'); process.stdout.write(data.recommended);")"
           mkdir -p _translator_upstream
           while IFS= read -r version; do
-            branch="dist-$version"
+            release_branch="release"
+            tag="dist-$version"
             source_dir="_translator_upstream/$version"
             target="./translator/$version"
 
-            echo "Publishing $version from nt7011/RPG-Maker-Live-Translator:$branch"
+            echo "Publishing $version from nt7011/RPG-Maker-Live-Translator:$tag"
             rm -rf "$source_dir"
-            git clone --depth 1 --branch "$branch" https://github.com/nt7011/RPG-Maker-Live-Translator.git "$source_dir"
+            git clone --depth 1 --branch "$release_branch" --no-tags https://github.com/nt7011/RPG-Maker-Live-Translator.git "$source_dir"
+            git -C "$source_dir" fetch --depth 1 origin "refs/tags/$tag:refs/tags/$tag"
+            git -C "$source_dir" checkout --detach "$tag"
 
             if [ ! -d "$source_dir/live-translator-installer" ]; then
-              echo "::error::Missing live-translator-installer in $branch."
+              echo "::error::Missing live-translator-installer in $tag."
               exit 1
             fi
 
@@ -115,7 +118,7 @@ jobs:
               if [ -f "$source_dir/version.json" ]; then
                 cp "$source_dir/version.json" "$source_dir/live-translator-installer/version.json"
               else
-                echo "::warning::Missing version.json in $branch; writing the available-versions entry."
+                echo "::warning::Missing version.json in $tag; writing the available-versions entry."
                 printf '{\n  "version": "%s"\n}\n' "$version" > "$source_dir/live-translator-installer/version.json"
               fi
             fi
