@@ -66,11 +66,20 @@ const DISABLE_GUI_AUTO_LAUNCH_FIELD = {
   descriptionKey: "field.disableGuiAutoLaunch.description",
   tooltipKey: "field.disableGuiAutoLaunch.tooltip",
 };
+const DIAGNOSTICS_PERFORMANCE_MODE_FIELD = {
+  id: "diagnostics.performanceMode",
+  path: ["diagnostics", "performanceMode"],
+  inputKind: "checkbox",
+  label: "performanceMode",
+  descriptionKey: "field.diagnostics.performanceMode.description",
+  tooltipKey: "field.diagnostics.performanceMode.tooltip",
+};
 const REINSTALL_DEFAULT_CONFIG_PATHS = [
   ["settings", ...CHECK_UPDATES_FIELD.path],
 ];
 const UPGRADE_DEFAULT_CONFIG_PATHS = [
   ["settings", "enableForesight"],
+  ["settings", "diagnostics", "performanceMode"],
   ["settings", "showForesightSpoilers"],
   ["settings", "ignoreTranslationRegex"],
   ["settings", "overrideTranslationRegex"],
@@ -292,6 +301,8 @@ let configStatusFlashFrame = null;
 
 const state = {
   manifest: null,
+  manifestLoadComplete: false,
+  manifestLoadError: "",
   rootHandle: null,
   inspection: null,
   busy: false,
@@ -311,6 +322,7 @@ const state = {
   installedTranslatorVersion: null,
   installedVersionChecked: false,
   dllHashCatalog: null,
+  dllHashCatalogLoaded: false,
   dllHashCatalogError: "",
   dllScan: null,
   dllScanBusy: false,
@@ -336,6 +348,7 @@ const dllScannerView = document.querySelector("#dll-scanner-view");
 const scanDllFolderButton = document.querySelector("#scan-dll-folder-button");
 const scanDllFolderInput = document.querySelector("#scan-dll-folder-input");
 const configStatus = document.querySelector("#config-status");
+const configEditorSection = document.querySelector("#config-editor-section");
 const settingsConfigFields = document.querySelector("#settings-config-fields");
 const translatorConfigFields = document.querySelector("#translator-config-fields");
 const logList = document.querySelector("#log-list");
@@ -382,9 +395,10 @@ async function initialize() {
 
   try {
     state.manifest = await loadManifest(INSTALL_MANIFEST_URL, { t });
+    state.manifestLoadError = "";
     pushLog(
       t("log.bundleLoaded", {
-        count: state.manifest.install.files.length + 3,
+        count: state.manifest.install.files.length + (state.manifest.install.settings ? 1 : 0),
       }),
       "info",
     );
@@ -393,7 +407,10 @@ async function initialize() {
       await refreshInstalledConfigSnapshot({ logOutcome: false });
     }
   } catch (error) {
+    state.manifestLoadError = error.message;
     pushLog(t("error.loadBundle", { message: error.message }), "error");
+  } finally {
+    state.manifestLoadComplete = true;
   }
 
   render();
@@ -410,6 +427,8 @@ async function initializeDllHashCatalog() {
   } catch (error) {
     state.dllHashCatalogError = error.message;
     pushLog(t("scanner.error.catalogLoad", { message: error.message }), "error");
+  } finally {
+    state.dllHashCatalogLoaded = true;
   }
 }
 
@@ -932,8 +951,13 @@ function renderSupportNote() {
     return;
   }
 
-  if (!state.manifest) {
+  if (!state.manifestLoadComplete) {
     supportNote.textContent = t("support.loadingBundle");
+    return;
+  }
+
+  if (state.manifestLoadError) {
+    supportNote.textContent = t("error.loadBundle", { message: state.manifestLoadError });
     return;
   }
 
@@ -1136,6 +1160,13 @@ function getDllScannerStatus() {
   }
 
   if (!state.rootHandle && !state.dllScan) {
+    if (!state.dllHashCatalogLoaded) {
+      return {
+        tone: "neutral",
+        message: t("scanner.status.loading"),
+      };
+    }
+
     return {
       tone: state.dllHashCatalog ? "neutral" : "error",
       message: state.dllHashCatalog
@@ -1256,6 +1287,29 @@ function renderConfigStatus() {
   let flashReinstallSaveReminder = false;
   const validationError = getConfigValidationError();
 
+  if (!state.configDraft) {
+    if (!supportsInstallation()) {
+      setConfigStatusTone("error");
+      setConfigStatusFlags();
+      configStatus.textContent = t("error.browserCannotInstall");
+      return;
+    }
+
+    if (!state.manifestLoadComplete) {
+      setConfigStatusTone("neutral");
+      setConfigStatusFlags();
+      configStatus.textContent = t("config.status.loading");
+      return;
+    }
+
+    if (state.manifestLoadError) {
+      setConfigStatusTone("error");
+      setConfigStatusFlags();
+      configStatus.textContent = t("error.loadBundle", { message: state.manifestLoadError });
+      return;
+    }
+  }
+
   if (state.configDraft) {
     if (!state.configEditable) {
       if (state.configAlertMessage) {
@@ -1369,7 +1423,17 @@ function triggerConfigStatusFlash() {
 }
 
 function renderConfigEditor() {
+  const hasSettingsConfig = typeof state.configDraft?.settings !== "undefined";
+  const hasTranslatorConfig = typeof state.configDraft?.translator !== "undefined";
   const editorLocked = Boolean(state.configDraft) && !state.configEditable;
+
+  configEditorSection.hidden = !hasSettingsConfig && !hasTranslatorConfig;
+  settingsConfigFields.hidden = !hasSettingsConfig;
+  translatorConfigFields.hidden = !hasTranslatorConfig;
+  translatorConfigFields.classList.toggle(
+    "config-fields--standalone",
+    hasTranslatorConfig && !hasSettingsConfig,
+  );
   settingsConfigFields.classList.toggle("is-locked", editorLocked);
   translatorConfigFields.classList.toggle("is-locked", editorLocked);
   renderSettingsConfig(settingsConfigFields, state.configDraft?.settings);
@@ -1384,10 +1448,6 @@ function renderSettingsConfig(container, config) {
   container.textContent = "";
 
   if (typeof config === "undefined") {
-    const placeholder = document.createElement("p");
-    placeholder.className = "config-empty";
-    placeholder.textContent = t("config.empty");
-    container.append(placeholder);
     return;
   }
 
@@ -1398,10 +1458,7 @@ function renderSettingsConfig(container, config) {
   ]));
   container.append(translationSection);
 
-  const textDisplaySection = createConfigGroup(
-    "config.section.textDisplay",
-    "config-group--soft-divider",
-  );
+  const textDisplaySection = createConfigGroup("config.section.textDisplay");
   textDisplaySection.append(buildConfigFieldRow([
     { configKey: "settings", config, field: GAME_MESSAGE_TEXT_SCALE_FIELD },
     { configKey: "settings", config, field: TEXT_SCALE_OTHERS_FIELD },
@@ -1411,12 +1468,10 @@ function renderSettingsConfig(container, config) {
 
   container.append(buildTextManipulationPanel(config));
 
-  const appBehaviorSection = createConfigGroup(
-    "config.section.appBehavior",
-    "config-group--soft-divider",
-  );
+  const appBehaviorSection = createConfigGroup("config.section.appBehavior");
   appBehaviorSection.append(buildConfigFieldRow([
     { configKey: "settings", config, field: DISABLE_GUI_AUTO_LAUNCH_FIELD },
+    { configKey: "settings", config, field: DIAGNOSTICS_PERFORMANCE_MODE_FIELD },
     { configKey: "settings", config, field: CHECK_UPDATES_FIELD },
   ]));
   container.append(appBehaviorSection);
@@ -1429,45 +1484,27 @@ function renderTranslatorConfig(container, config, settingsConfig) {
     return;
   }
 
-  const providerSection = document.createElement("section");
-  providerSection.className = "config-group";
-
-  const providerHeading = document.createElement("h4");
-  providerHeading.className = "config-group-title";
-  providerHeading.textContent = t("config.section.provider");
-  providerSection.append(providerHeading);
+  const providerSection = createConfigGroup("config.section.provider");
   providerSection.append(buildProviderToggle(config));
 
   const provider = getSelectedProvider(config);
   if (provider === "none") {
-    const providerNote = document.createElement("p");
-    providerNote.className = "config-group-note";
-    providerNote.textContent = t("config.section.noneSettings.note");
-    providerSection.append(providerNote);
+    appendConfigGroupNote(providerSection, t("config.section.noneSettings.note"));
     container.append(providerSection);
     return;
   }
 
   container.append(providerSection);
 
-  const settingsSection = document.createElement("section");
-  settingsSection.className = "config-group";
-  if (provider === "local") {
-    settingsSection.classList.add("local-settings-group");
-  }
-
-  const settingsHeading = document.createElement("h4");
-  settingsHeading.className = "config-group-title";
-  settingsHeading.textContent = provider === "deepl"
-    ? t("config.section.deeplSettings")
-    : t("config.section.localSettings");
-  settingsSection.append(settingsHeading);
+  const settingsSection = createConfigGroup(
+    provider === "deepl" ? "config.section.deeplSettings" : "config.section.localSettings",
+    ...(provider === "local" ? ["local-settings-group"] : []),
+  );
 
   if (provider === "local") {
-    const settingsNote = document.createElement("p");
-    settingsNote.className = "config-group-note";
-    settingsNote.textContent = t("config.section.localSettings.note");
-    settingsSection.append(settingsNote);
+    appendConfigGroupNote(settingsSection, t("config.section.localSettings.note"));
+  } else if (provider === "deepl") {
+    appendConfigGroupNote(settingsSection, t("provider.deepl.description"));
   }
 
   const fieldGrid = document.createElement("div");
@@ -1503,7 +1540,7 @@ function renderTranslatorConfig(container, config, settingsConfig) {
 
 function createConfigGroup(titleKey, ...classNames) {
   const section = document.createElement("section");
-  section.className = ["config-group", ...classNames].join(" ");
+  section.className = ["config-group", ...classNames].filter(Boolean).join(" ");
 
   const heading = document.createElement("h4");
   heading.className = "config-group-title";
@@ -1511,6 +1548,13 @@ function createConfigGroup(titleKey, ...classNames) {
   section.append(heading);
 
   return section;
+}
+
+function appendConfigGroupNote(section, text) {
+  const note = document.createElement("p");
+  note.className = "config-group-note";
+  note.textContent = text;
+  section.append(note);
 }
 
 function buildConfigFieldRow(items) {
@@ -1532,7 +1576,7 @@ function buildConfigFieldRow(items) {
 
 function buildTextManipulationPanel(config) {
   const panel = document.createElement("details");
-  panel.className = "config-group config-collapsible config-group--soft-divider";
+  panel.className = "config-group config-collapsible";
   panel.open = hasTextManipulationRules(config);
 
   const summary = document.createElement("summary");
@@ -1574,7 +1618,7 @@ function hasRuleListContent(value) {
 function buildProviderToggle(config) {
   const provider = getSelectedProvider(config);
   const group = document.createElement("div");
-  group.className = "config-radio-group";
+  group.className = "config-field-row config-field-row--provider";
 
   for (const option of [
     {
@@ -1585,7 +1629,6 @@ function buildProviderToggle(config) {
     {
       value: "deepl",
       label: "deepl",
-      descriptionKey: "provider.deepl.description",
       tooltipKey: "provider.deepl.tooltip",
     },
     { value: "none", label: "none", tooltipKey: "provider.none.tooltip" },
@@ -1612,18 +1655,12 @@ function buildProviderToggle(config) {
     text.textContent = option.label;
     text.title = t(option.tooltipKey);
 
-    const optionCopy = document.createElement("span");
-    optionCopy.className = "config-radio-copy";
-    optionCopy.append(text);
-    if (option.descriptionKey) {
-      const description = document.createElement("span");
-      description.className = "config-radio-description";
-      description.textContent = t(option.descriptionKey);
-      optionCopy.append(description);
-    }
+    label.append(input, text);
 
-    label.append(input, optionCopy);
-    group.append(label);
+    const wrapper = document.createElement("div");
+    wrapper.className = "config-field config-field--provider-option";
+    wrapper.append(label);
+    group.append(wrapper);
   }
 
   return group;

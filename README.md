@@ -7,8 +7,8 @@ The actual translator project lives here: [RPG-Maker-Live-Translator](https://gi
 ## What it does
 
 - Detects RPG Maker folder layouts using either `js/plugins` or `www/js/plugins`
-- Copies the loader and support files from the selected version's `live-translator-installer/install-manifest.json`
-- Adds the `live-translator-loader` entry to `plugins.js`
+- Copies the loader and support files from the selected version's published payload
+- Adds the live-translator plugin entry to `plugins.js`
 - Patches an empty `name` field in `package.json` to `Game` when needed
 - Loads, edits, and saves installed `settings.json` and `translator.json`
 - Scans DLL files based on all known NW.js releases
@@ -19,6 +19,7 @@ The actual translator project lives here: [RPG-Maker-Live-Translator](https://gi
 - A Chromium-based browser with the File System Access API, like Chrome or Edge
 - A secure context: `https://`, `http://localhost`, or another loopback address
 - Read/write permission to the target game folder
+- Game installation in protected file paths may fail (like Program Files)
 
 ## How to use
 
@@ -26,27 +27,6 @@ The actual translator project lives here: [RPG-Maker-Live-Translator](https://gi
 2. Choose the target game folder.
 3. Install the plugin bundle.
 4. Edit `settings.json` and `translator.json` in the UI if needed, then save.
-
-The root page loads `available-versions.json`, links the recommended version to
-`/translator`, and enables recommended beta, stable, and prerelease versions only
-when their `/translator/<version>/` route is available. The pinned 3.2.10
-installer is available at `/translator/3.2.10`. `info/translator-version.json`
-publishes `recommended`, `recommended-beta`, and the backward-compatible
-`version` fallback that tracks `recommended`.
-
-## Translation providers
-
-- `deepl`: Requires a DeepL API key.
-- `local`: Uses a locally hosted translation endpoint and configurable model settings.
-
-## Repository layout
-
-- `index.html`, `available-versions.json`, `version-index.mjs`: Dynamic version selector
-- `translator/index.html`: Recommended-version alias served without redirecting
-- `translator/<version>/`: Version-coupled installer UI, logic, scanner data, and payload
-- `translator/<version>/live-translator-installer/`: Plugin files and shared install manifest copied into the game
-- `game_example/`, `game_example_2/`: Sample target folders for testing
-- `tests/`: Node-based tests for config and installer behavior
 
 ## Local development
 
