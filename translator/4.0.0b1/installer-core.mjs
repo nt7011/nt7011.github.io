@@ -249,15 +249,22 @@ export async function loadPublishedVersionInfo(url = PUBLISHED_VERSION_URL, opti
     }
 
     const data = await response.json();
-    const version = normalizeVersion(data?.["recommended-beta"])
-      ?? normalizeVersion(data?.recommendedBeta)
-      ?? normalizeVersion(data?.version)
-      ?? normalizeVersion(data?.recommended);
+    const version = resolvePublishedVersion(data, options.channel);
 
     return version === PUBLISHED_VERSION_UNAVAILABLE ? null : version;
   } catch {
     return null;
   }
+}
+
+function resolvePublishedVersion(data, channel = "stable") {
+  if (channel === "beta") {
+    return normalizeVersion(data?.["recommended-beta"])
+      ?? normalizeVersion(data?.recommendedBeta);
+  }
+
+  return normalizeVersion(data?.recommended)
+    ?? normalizeVersion(data?.version);
 }
 
 export function getInstallVersionMismatch(installableVersion, publishedVersion) {

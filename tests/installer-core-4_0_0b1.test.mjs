@@ -129,7 +129,7 @@ test("4.0.0b1 loadManifest uses the generated file index for live-translator pay
   ]);
 });
 
-test("4.0.0b1 published version checks follow recommended-beta", async () => {
+test("4.0.0b1 published stable version ignores recommended-beta", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, options) => {
     const parsedUrl = new URL(String(url));
@@ -148,6 +148,33 @@ test("4.0.0b1 published version checks follow recommended-beta", async () => {
     const publishedVersion = await loadPublishedVersionInfo(
       "https://example.test/info/translator-version.json",
       { cacheBustValue: 12345 },
+    );
+
+    assert.equal(publishedVersion, "3.2.10");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("4.0.0b1 published beta version checks follow recommended-beta", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    const parsedUrl = new URL(String(url));
+    assert.equal(parsedUrl.pathname, "/info/translator-version.json");
+    assert.equal(parsedUrl.searchParams.get("installCheck"), "12345");
+    assert.equal(options?.cache, "no-store");
+    return createFetchResponse({
+      "/info/translator-version.json": JSON.stringify({
+        recommended: "3.2.10",
+        "recommended-beta": "4.0.0b1",
+      }),
+    }, url);
+  };
+
+  try {
+    const publishedVersion = await loadPublishedVersionInfo(
+      "https://example.test/info/translator-version.json",
+      { cacheBustValue: 12345, channel: "beta" },
     );
 
     assert.equal(publishedVersion, "4.0.0b1");

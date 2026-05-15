@@ -319,6 +319,7 @@ const state = {
   configErrors: new Set(),
   translatorVersion: null,
   latestStableVersion: null,
+  latestInstallableVersion: null,
   installedTranslatorVersion: null,
   installedVersionChecked: false,
   dllHashCatalog: null,
@@ -385,6 +386,9 @@ function applyDocumentTranslations() {
 async function initialize() {
   state.translatorVersion = await loadVersionInfo(INSTALL_VERSION_URL);
   state.latestStableVersion = await loadPublishedVersionInfo(PUBLISHED_VERSION_URL);
+  state.latestInstallableVersion = await loadPublishedVersionInfo(PUBLISHED_VERSION_URL, {
+    channel: "beta",
+  });
   await initializeDllHashCatalog();
 
   if (!supportsInstallation()) {
@@ -614,8 +618,10 @@ async function handleInstall() {
 }
 
 async function assertInstallableVersionIsCurrent() {
-  const publishedVersion = await loadPublishedVersionInfo(PUBLISHED_VERSION_URL);
-  state.latestStableVersion = publishedVersion;
+  const publishedVersion = await loadPublishedVersionInfo(PUBLISHED_VERSION_URL, {
+    channel: "beta",
+  });
+  state.latestInstallableVersion = publishedVersion;
   renderVersionInfo();
 
   const mismatch = getInstallVersionMismatch(state.translatorVersion, publishedVersion);
@@ -894,12 +900,12 @@ function renderVersionInfo() {
   const currentVersion = state.installedVersionChecked
     ? getDisplayVersion(state.installedTranslatorVersion)
     : t("folder.unknown");
-  const versionForUpdateCheck = state.latestStableVersion ?? state.translatorVersion;
+  const versionForInstallableCheck = state.latestInstallableVersion ?? state.translatorVersion;
 
-  if (getInstallVersionMismatch(state.translatorVersion, state.latestStableVersion)) {
+  if (getInstallVersionMismatch(state.translatorVersion, state.latestInstallableVersion)) {
     tone = "warning";
   } else if (state.installedVersionChecked) {
-    tone = isVersionOutdated(state.installedTranslatorVersion, versionForUpdateCheck)
+    tone = isVersionOutdated(state.installedTranslatorVersion, versionForInstallableCheck)
       ? "warning"
       : "success";
   }
