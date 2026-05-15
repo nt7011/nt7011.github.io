@@ -301,6 +301,8 @@ let configStatusFlashFrame = null;
 
 const state = {
   manifest: null,
+  manifestLoadComplete: false,
+  manifestLoadError: "",
   rootHandle: null,
   inspection: null,
   busy: false,
@@ -320,6 +322,7 @@ const state = {
   installedTranslatorVersion: null,
   installedVersionChecked: false,
   dllHashCatalog: null,
+  dllHashCatalogLoaded: false,
   dllHashCatalogError: "",
   dllScan: null,
   dllScanBusy: false,
@@ -345,6 +348,7 @@ const dllScannerView = document.querySelector("#dll-scanner-view");
 const scanDllFolderButton = document.querySelector("#scan-dll-folder-button");
 const scanDllFolderInput = document.querySelector("#scan-dll-folder-input");
 const configStatus = document.querySelector("#config-status");
+const configEditorSection = document.querySelector("#config-editor-section");
 const settingsConfigFields = document.querySelector("#settings-config-fields");
 const translatorConfigFields = document.querySelector("#translator-config-fields");
 const logList = document.querySelector("#log-list");
@@ -391,6 +395,7 @@ async function initialize() {
 
   try {
     state.manifest = await loadManifest(INSTALL_MANIFEST_URL, { t });
+    state.manifestLoadError = "";
     pushLog(
       t("log.bundleLoaded", {
         count: state.manifest.install.files.length + (state.manifest.install.settings ? 1 : 0),
@@ -402,7 +407,10 @@ async function initialize() {
       await refreshInstalledConfigSnapshot({ logOutcome: false });
     }
   } catch (error) {
+    state.manifestLoadError = error.message;
     pushLog(t("error.loadBundle", { message: error.message }), "error");
+  } finally {
+    state.manifestLoadComplete = true;
   }
 
   render();
@@ -419,6 +427,8 @@ async function initializeDllHashCatalog() {
   } catch (error) {
     state.dllHashCatalogError = error.message;
     pushLog(t("scanner.error.catalogLoad", { message: error.message }), "error");
+  } finally {
+    state.dllHashCatalogLoaded = true;
   }
 }
 
@@ -941,8 +951,13 @@ function renderSupportNote() {
     return;
   }
 
-  if (!state.manifest) {
+  if (!state.manifestLoadComplete) {
     supportNote.textContent = t("support.loadingBundle");
+    return;
+  }
+
+  if (state.manifestLoadError) {
+    supportNote.textContent = t("error.loadBundle", { message: state.manifestLoadError });
     return;
   }
 
@@ -1145,6 +1160,13 @@ function getDllScannerStatus() {
   }
 
   if (!state.rootHandle && !state.dllScan) {
+    if (!state.dllHashCatalogLoaded) {
+      return {
+        tone: "neutral",
+        message: t("scanner.status.loading"),
+      };
+    }
+
     return {
       tone: state.dllHashCatalog ? "neutral" : "error",
       message: state.dllHashCatalog
@@ -1265,6 +1287,29 @@ function renderConfigStatus() {
   let flashReinstallSaveReminder = false;
   const validationError = getConfigValidationError();
 
+  if (!state.configDraft) {
+    if (!supportsInstallation()) {
+      setConfigStatusTone("error");
+      setConfigStatusFlags();
+      configStatus.textContent = t("error.browserCannotInstall");
+      return;
+    }
+
+    if (!state.manifestLoadComplete) {
+      setConfigStatusTone("neutral");
+      setConfigStatusFlags();
+      configStatus.textContent = t("config.status.loading");
+      return;
+    }
+
+    if (state.manifestLoadError) {
+      setConfigStatusTone("error");
+      setConfigStatusFlags();
+      configStatus.textContent = t("error.loadBundle", { message: state.manifestLoadError });
+      return;
+    }
+  }
+
   if (state.configDraft) {
     if (!state.configEditable) {
       if (state.configAlertMessage) {
@@ -1378,7 +1423,17 @@ function triggerConfigStatusFlash() {
 }
 
 function renderConfigEditor() {
+  const hasSettingsConfig = typeof state.configDraft?.settings !== "undefined";
+  const hasTranslatorConfig = typeof state.configDraft?.translator !== "undefined";
   const editorLocked = Boolean(state.configDraft) && !state.configEditable;
+
+  configEditorSection.hidden = !hasSettingsConfig && !hasTranslatorConfig;
+  settingsConfigFields.hidden = !hasSettingsConfig;
+  translatorConfigFields.hidden = !hasTranslatorConfig;
+  translatorConfigFields.classList.toggle(
+    "config-fields--standalone",
+    hasTranslatorConfig && !hasSettingsConfig,
+  );
   settingsConfigFields.classList.toggle("is-locked", editorLocked);
   translatorConfigFields.classList.toggle("is-locked", editorLocked);
   renderSettingsConfig(settingsConfigFields, state.configDraft?.settings);
@@ -1393,10 +1448,6 @@ function renderSettingsConfig(container, config) {
   container.textContent = "";
 
   if (typeof config === "undefined") {
-    const placeholder = document.createElement("p");
-    placeholder.className = "config-empty";
-    placeholder.textContent = t("config.empty");
-    container.append(placeholder);
     return;
   }
 

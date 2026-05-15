@@ -468,6 +468,12 @@ button:disabled {
   border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
 }
 
+.config-fields--translation.config-fields--standalone:not(:empty) {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
 .precacher-panel {
   border: 1px solid #99d1c8;
   border-left: 4px solid var(--accent);
