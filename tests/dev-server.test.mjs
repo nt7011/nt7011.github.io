@@ -17,11 +17,11 @@ test("dev server generates a live-translator file index for local beta payloads"
     await rm(fixtureRoot, { recursive: true, force: true });
   });
 
-  const payloadRoot = path.join(fixtureRoot, "translator", "4.0.0b1", "live-translator");
+  const payloadRoot = path.join(fixtureRoot, "translator", "4.0.0b2", "live-translator");
   await mkdir(path.join(payloadRoot, "gui"), { recursive: true });
   await mkdir(path.join(payloadRoot, "runtime"), { recursive: true });
   await writeFile(path.join(payloadRoot, "install-manifest.json"), "{}\n");
-  await writeFile(path.join(payloadRoot, "version.json"), "{\"version\":\"4.0.0b1\"}\n");
+  await writeFile(path.join(payloadRoot, "version.json"), "{\"version\":\"4.0.0b2\"}\n");
   await writeFile(path.join(payloadRoot, "gui", "index.html"), "<!doctype html>\n");
   await writeFile(path.join(payloadRoot, "runtime", "paths.js"), "export {};\n");
 
@@ -31,7 +31,7 @@ test("dev server generates a live-translator file index for local beta payloads"
   });
 
   const response = await fetch(
-    `http://127.0.0.1:${server.port}/translator/4.0.0b1/live-translator-files.json`,
+    `http://127.0.0.1:${server.port}/translator/4.0.0b2/live-translator-files.json`,
     { cache: "no-store" },
   );
 

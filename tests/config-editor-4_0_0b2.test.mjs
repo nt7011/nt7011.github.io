@@ -3,7 +3,7 @@ import test from "node:test";
 
 import {
   applyMissingConfigPathDefaults,
-} from "../translator/4.0.0b1/installer-core.mjs";
+} from "../translator/4.0.0b2/installer-core.mjs";
 import {
   formatPlaintextSubstitutionRules,
   formatTranslationRegexReplacementRules,
@@ -11,12 +11,12 @@ import {
   normalizeTranslationRegexReplacementInput,
   validatePlaintextSubstitutionValue,
   validateTranslationRegexReplacementValue,
-} from "../translator/4.0.0b1/config-editor.mjs";
+} from "../translator/4.0.0b2/config-editor.mjs";
 import {
   createTranslator,
-} from "../translator/4.0.0b1/i18n.mjs";
+} from "../translator/4.0.0b2/i18n.mjs";
 
-test("4.0.0b1 overrideTranslationRegex editor uses regex replacement rules", () => {
+test("4.0.0b2 overrideTranslationRegex editor uses regex replacement rules", () => {
   const result = normalizeTranslationRegexReplacementInput(`
     ^ゴールド:\\s*(\\d+)$ => Gold: $1
     /^体力:\\s*(\\d+)$/i => HP: $1
@@ -34,7 +34,7 @@ test("4.0.0b1 overrideTranslationRegex editor uses regex replacement rules", () 
   assert.deepEqual(validateTranslationRegexReplacementValue(result.rules), []);
 });
 
-test("4.0.0b1 overrideTranslationRegex enforces arrow grammar and regex validity", () => {
+test("4.0.0b2 overrideTranslationRegex enforces arrow grammar and regex validity", () => {
   const result = normalizeTranslationRegexReplacementInput(`
     ^NoArrow$
     /bad/g => ignored
@@ -56,7 +56,7 @@ test("4.0.0b1 overrideTranslationRegex enforces arrow grammar and regex validity
   );
 });
 
-test("4.0.0b1 substitutePlaintextBeforeTranslation editor uses plaintext replacement rules", () => {
+test("4.0.0b2 substitutePlaintextBeforeTranslation editor uses plaintext replacement rules", () => {
   const result = normalizePlaintextSubstitutionInput(`
     トム => Tom
     Tsukuru => つくる
@@ -74,7 +74,7 @@ test("4.0.0b1 substitutePlaintextBeforeTranslation editor uses plaintext replace
   assert.deepEqual(validatePlaintextSubstitutionValue(result.rules), []);
 });
 
-test("4.0.0b1 rule editor localization uses beta copy and Japanese examples", () => {
+test("4.0.0b2 rule editor localization uses beta copy and Japanese examples", () => {
   const en = createTranslator("en-US");
   const ko = createTranslator("ko-KR");
 
@@ -124,7 +124,7 @@ test("4.0.0b1 rule editor localization uses beta copy and Japanese examples", ()
   );
 });
 
-test("4.0.0b1 upgrade defaults backfill hidden and visible beta settings only when missing", () => {
+test("4.0.0b2 upgrade defaults backfill hidden and visible beta settings only when missing", () => {
   const defaultConfigs = {
     settings: {
       enableForesight: true,

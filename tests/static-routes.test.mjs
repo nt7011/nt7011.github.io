@@ -110,18 +110,18 @@ test("translator version metadata matches the approved version folder", async ()
     "version.json",
   ));
   const versionedInstallerCore = await readSiteFile("translator", "3.2.10", "installer-core.mjs");
-  const betaInstallerCore = await readSiteFile("translator", "4.0.0b1", "installer-core.mjs");
+  const betaInstallerCore = await readSiteFile("translator", "4.0.0b2", "installer-core.mjs");
 
   assert.equal(availableVersions.recommended, "3.2.10");
-  assert.equal(availableVersions["recommended-beta"], "4.0.0b1");
+  assert.equal(availableVersions["recommended-beta"], "4.0.0b2");
   assert.deepEqual(availableVersions.stable, ["3.2.10"]);
-  assert.deepEqual(availableVersions.prerelease, ["4.0.0b1"]);
+  assert.deepEqual(availableVersions.prerelease, ["4.0.0b2"]);
   assert.deepEqual({
     recommended: availableVersions.recommended,
     "recommended-beta": availableVersions["recommended-beta"],
   }, {
     recommended: "3.2.10",
-    "recommended-beta": "4.0.0b1",
+    "recommended-beta": "4.0.0b2",
   });
   assert.equal(bundledVersion.version, "3.2.10");
   assert.match(versionedInstallerCore, /`\.\/live-translator-installer\/\$\{VERSION_FILE_NAME\}`/);

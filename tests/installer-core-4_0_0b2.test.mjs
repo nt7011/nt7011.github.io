@@ -11,9 +11,9 @@ import {
   installGame,
   loadManifest,
   loadPublishedVersionInfo,
-} from "../translator/4.0.0b1/installer-core.mjs";
+} from "../translator/4.0.0b2/installer-core.mjs";
 
-const testBundleUrl = "https://example.test/translator/4.0.0b1/live-translator/";
+const testBundleUrl = "https://example.test/translator/4.0.0b2/live-translator/";
 
 function createFourZeroManifest(overrides = {}) {
   const files = overrides.install?.files ?? [
@@ -54,20 +54,20 @@ function createFourZeroManifest(overrides = {}) {
   };
 }
 
-test("4.0.0b1 installer URLs point at the live-translator payload", () => {
-  assert.equal(INSTALL_MANIFEST_URL.pathname.endsWith("/translator/4.0.0b1/live-translator/install-manifest.json"), true);
-  assert.equal(INSTALL_FILE_INDEX_URL.pathname.endsWith("/translator/4.0.0b1/live-translator-files.json"), true);
-  assert.equal(INSTALL_VERSION_URL.pathname.endsWith("/translator/4.0.0b1/live-translator/version.json"), true);
+test("4.0.0b2 installer URLs point at the live-translator payload", () => {
+  assert.equal(INSTALL_MANIFEST_URL.pathname.endsWith("/translator/4.0.0b2/live-translator/install-manifest.json"), true);
+  assert.equal(INSTALL_FILE_INDEX_URL.pathname.endsWith("/translator/4.0.0b2/live-translator-files.json"), true);
+  assert.equal(INSTALL_VERSION_URL.pathname.endsWith("/translator/4.0.0b2/live-translator/version.json"), true);
 });
 
-test("4.0.0b1 loadManifest uses the generated file index for live-translator payloads", async () => {
+test("4.0.0b2 loadManifest uses the generated file index for live-translator payloads", async () => {
   const originalFetch = globalThis.fetch;
   const requests = [];
   globalThis.fetch = async (url, options) => {
     const pathname = new URL(String(url)).pathname;
     requests.push({ pathname, cache: options?.cache });
     return createFetchResponse({
-      "/translator/4.0.0b1/live-translator/install-manifest.json": JSON.stringify({
+      "/translator/4.0.0b2/live-translator/install-manifest.json": JSON.stringify({
         schemaVersion: 2,
         supportDirectory: "live-translator",
         loader: "live-translator-loader.js",
@@ -79,7 +79,7 @@ test("4.0.0b1 loadManifest uses the generated file index for live-translator pay
           scriptLoadOrder: ["bootstrap.js"],
         },
       }),
-      "/translator/4.0.0b1/live-translator-files.json": JSON.stringify({
+      "/translator/4.0.0b2/live-translator-files.json": JSON.stringify({
         files: [
           "config-templates/settings.release.json",
           "translator.json",
@@ -92,7 +92,7 @@ test("4.0.0b1 loadManifest uses the generated file index for live-translator pay
 
   try {
     const manifest = await loadManifest(
-      "https://example.test/translator/4.0.0b1/live-translator/install-manifest.json",
+      "https://example.test/translator/4.0.0b2/live-translator/install-manifest.json",
     );
 
     assert.equal(manifest.bundleUrl, testBundleUrl);
@@ -119,17 +119,17 @@ test("4.0.0b1 loadManifest uses the generated file index for live-translator pay
 
   assert.deepEqual(requests, [
     {
-      pathname: "/translator/4.0.0b1/live-translator/install-manifest.json",
+      pathname: "/translator/4.0.0b2/live-translator/install-manifest.json",
       cache: "no-store",
     },
     {
-      pathname: "/translator/4.0.0b1/live-translator-files.json",
+      pathname: "/translator/4.0.0b2/live-translator-files.json",
       cache: "no-store",
     },
   ]);
 });
 
-test("4.0.0b1 published stable version ignores recommended-beta", async () => {
+test("4.0.0b2 published stable version ignores recommended-beta", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, options) => {
     const parsedUrl = new URL(String(url));
@@ -139,7 +139,7 @@ test("4.0.0b1 published stable version ignores recommended-beta", async () => {
     return createFetchResponse({
       "/info/translator-version.json": JSON.stringify({
         recommended: "3.2.10",
-        "recommended-beta": "4.0.0b1",
+        "recommended-beta": "4.0.0b2",
       }),
     }, url);
   };
@@ -156,7 +156,7 @@ test("4.0.0b1 published stable version ignores recommended-beta", async () => {
   }
 });
 
-test("4.0.0b1 published beta version checks follow recommended-beta", async () => {
+test("4.0.0b2 published beta version checks follow recommended-beta", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, options) => {
     const parsedUrl = new URL(String(url));
@@ -166,7 +166,7 @@ test("4.0.0b1 published beta version checks follow recommended-beta", async () =
     return createFetchResponse({
       "/info/translator-version.json": JSON.stringify({
         recommended: "3.2.10",
-        "recommended-beta": "4.0.0b1",
+        "recommended-beta": "4.0.0b2",
       }),
     }, url);
   };
@@ -177,14 +177,14 @@ test("4.0.0b1 published beta version checks follow recommended-beta", async () =
       { cacheBustValue: 12345, channel: "beta" },
     );
 
-    assert.equal(publishedVersion, "4.0.0b1");
-    assert.equal(getInstallVersionMismatch("4.0.0b1", publishedVersion), null);
+    assert.equal(publishedVersion, "4.0.0b2");
+    assert.equal(getInstallVersionMismatch("4.0.0b2", publishedVersion), null);
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test("4.0.0b1 installGame copies live-translator into the support folder and upgrades legacy plugin entry", async () => {
+test("4.0.0b2 installGame copies live-translator into the support folder and upgrades legacy plugin entry", async () => {
   const rootHandle = createFakeDirectory("Game");
   const jsHandle = rootHandle.addDirectory("js");
   const pluginsHandle = jsHandle.addDirectory("plugins");
@@ -200,18 +200,18 @@ test("4.0.0b1 installGame copies live-translator into the support folder and upg
   const manifest = createFourZeroManifest();
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => createFetchResponse({
-    "/translator/4.0.0b1/live-translator/live-translator-loader.js": 'console.log("loader");\n',
-    "/translator/4.0.0b1/live-translator/install-manifest.json": "{}\n",
-    "/translator/4.0.0b1/live-translator/version.json": "{\"version\":\"4.0.0b1\"}\n",
-    "/translator/4.0.0b1/live-translator/config-templates/settings.release.json": "{\"existing\":false}\n",
-    "/translator/4.0.0b1/live-translator/translator.json": "{\"provider\":\"local\"}\n",
-    "/translator/4.0.0b1/live-translator/gui/index.html": "<!doctype html>\n",
+    "/translator/4.0.0b2/live-translator/live-translator-loader.js": 'console.log("loader");\n',
+    "/translator/4.0.0b2/live-translator/install-manifest.json": "{}\n",
+    "/translator/4.0.0b2/live-translator/version.json": "{\"version\":\"4.0.0b2\"}\n",
+    "/translator/4.0.0b2/live-translator/config-templates/settings.release.json": "{\"existing\":false}\n",
+    "/translator/4.0.0b2/live-translator/translator.json": "{\"provider\":\"local\"}\n",
+    "/translator/4.0.0b2/live-translator/gui/index.html": "<!doctype html>\n",
   }, url);
 
   let result;
   try {
     result = await installGame(rootHandle, manifest, {
-      baseUrl: "https://example.test/translator/4.0.0b1/app.mjs",
+      baseUrl: "https://example.test/translator/4.0.0b2/app.mjs",
     });
   } finally {
     globalThis.fetch = originalFetch;
@@ -232,7 +232,7 @@ test("4.0.0b1 installGame copies live-translator into the support folder and upg
   );
   assert.equal(supportHandle.readFileText("translator.json"), "{\"provider\":\"local\"}\n");
   assert.equal(supportHandle.readFileTextAtPath("gui/index.html"), "<!doctype html>\n");
-  assert.equal(supportHandle.readFileText("version.json"), "{\"version\":\"4.0.0b1\"}\n");
+  assert.equal(supportHandle.readFileText("version.json"), "{\"version\":\"4.0.0b2\"}\n");
   assert.throws(
     () => supportHandle.readFileTextAtPath("hooks/old.js"),
     /Missing fake file: old\.js/,
@@ -253,7 +253,7 @@ test("4.0.0b1 installGame copies live-translator into the support folder and upg
   });
 });
 
-test("4.0.0b1 installGame creates settings.json from the release template when root settings are absent", async () => {
+test("4.0.0b2 installGame creates settings.json from the release template when root settings are absent", async () => {
   const rootHandle = createFakeDirectory("Game");
   const jsHandle = rootHandle.addDirectory("js");
   const pluginsHandle = jsHandle.addDirectory("plugins");
@@ -268,19 +268,19 @@ test("4.0.0b1 installGame creates settings.json from the release template when r
   globalThis.fetch = async (url) => {
     requests.push(new URL(String(url)).pathname);
     return createFetchResponse({
-      "/translator/4.0.0b1/live-translator/live-translator-loader.js": 'console.log("loader");\n',
-      "/translator/4.0.0b1/live-translator/install-manifest.json": "{}\n",
-      "/translator/4.0.0b1/live-translator/version.json": "{\"version\":\"4.0.0b1\"}\n",
-      "/translator/4.0.0b1/live-translator/config-templates/settings.release.json": releaseSettings,
-      "/translator/4.0.0b1/live-translator/translator.json": "{\"provider\":\"local\"}\n",
-      "/translator/4.0.0b1/live-translator/gui/index.html": "<!doctype html>\n",
+      "/translator/4.0.0b2/live-translator/live-translator-loader.js": 'console.log("loader");\n',
+      "/translator/4.0.0b2/live-translator/install-manifest.json": "{}\n",
+      "/translator/4.0.0b2/live-translator/version.json": "{\"version\":\"4.0.0b2\"}\n",
+      "/translator/4.0.0b2/live-translator/config-templates/settings.release.json": releaseSettings,
+      "/translator/4.0.0b2/live-translator/translator.json": "{\"provider\":\"local\"}\n",
+      "/translator/4.0.0b2/live-translator/gui/index.html": "<!doctype html>\n",
     }, url);
   };
 
   let result;
   try {
     result = await installGame(rootHandle, manifest, {
-      baseUrl: "https://example.test/translator/4.0.0b1/app.mjs",
+      baseUrl: "https://example.test/translator/4.0.0b2/app.mjs",
     });
   } finally {
     globalThis.fetch = originalFetch;
@@ -293,7 +293,7 @@ test("4.0.0b1 installGame creates settings.json from the release template when r
     releaseSettings,
   );
   assert.equal(
-    requests.includes("/translator/4.0.0b1/live-translator/settings.json"),
+    requests.includes("/translator/4.0.0b2/live-translator/settings.json"),
     false,
   );
   assert.equal(result.filesCopied, 7);
