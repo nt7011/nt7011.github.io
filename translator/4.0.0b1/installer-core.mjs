@@ -27,6 +27,12 @@ export const CONFIG_FILE_MAP = Object.freeze({
 
 const CONFIG_FILE_NAMES = new Set(Object.values(CONFIG_FILE_MAP));
 const INSTALL_MANIFEST_FILE_NAME = "install-manifest.json";
+const DEFAULT_SETTINGS_RELEASE_SOURCE = "config-templates/settings.release.json";
+const DEFAULT_SETTINGS_INSTALL = Object.freeze({
+  developmentSource: DEFAULT_SETTINGS_RELEASE_SOURCE,
+  releaseSource: DEFAULT_SETTINGS_RELEASE_SOURCE,
+  destination: "settings.json",
+});
 const DEFAULT_PLUGIN_DESCRIPTION = "Entry point for the live translation system";
 const DEFAULT_T = createTranslator("en");
 
@@ -182,6 +188,8 @@ function normalizeInstallManifest(manifest, manifestUrl, options = {}) {
       releaseSource: normalizeSupportFilePath(settings.releaseSource),
       destination: normalizeSupportFilePath(settings.destination),
     };
+  } else if (shouldCreateSettingsFromReleaseTemplate(installFiles)) {
+    normalizedInstall.settings = DEFAULT_SETTINGS_INSTALL;
   }
 
   return {
@@ -202,6 +210,11 @@ function normalizeInstallManifest(manifest, manifestUrl, options = {}) {
       scriptLoadOrder: normalizeSupportFileList(runtime.scriptLoadOrder ?? []),
     },
   };
+}
+
+function shouldCreateSettingsFromReleaseTemplate(installFiles) {
+  return !installFiles.includes(DEFAULT_SETTINGS_INSTALL.destination)
+    && installFiles.includes(DEFAULT_SETTINGS_INSTALL.releaseSource);
 }
 
 export async function loadVersionInfo(url = INSTALL_VERSION_URL) {

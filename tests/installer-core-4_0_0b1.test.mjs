@@ -20,7 +20,7 @@ function createFourZeroManifest(overrides = {}) {
     "live-translator-loader.js",
     "install-manifest.json",
     "version.json",
-    "settings.json",
+    "config-templates/settings.release.json",
     "translator.json",
     "gui/index.html",
   ];
@@ -43,6 +43,11 @@ function createFourZeroManifest(overrides = {}) {
     ...overrides,
     install: {
       files,
+      settings: {
+        developmentSource: "config-templates/settings.release.json",
+        releaseSource: "config-templates/settings.release.json",
+        destination: "settings.json",
+      },
       obsolete: ["hooks/old.js"],
       ...overrides.install,
     },
@@ -76,7 +81,7 @@ test("4.0.0b1 loadManifest uses the generated file index for live-translator pay
       }),
       "/translator/4.0.0b1/live-translator-files.json": JSON.stringify({
         files: [
-          "settings.json",
+          "config-templates/settings.release.json",
           "translator.json",
           "version.json",
           "gui/index.html",
@@ -97,13 +102,17 @@ test("4.0.0b1 loadManifest uses the generated file index for live-translator pay
     assert.deepEqual(manifest.install.files, [
       "live-translator-loader.js",
       "install-manifest.json",
-      "settings.json",
+      "config-templates/settings.release.json",
       "translator.json",
       "version.json",
       "gui/index.html",
     ]);
     assert.deepEqual(manifest.install.obsolete, ["hooks/old.js"]);
-    assert.equal(Object.hasOwn(manifest.install, "settings"), false);
+    assert.deepEqual(manifest.install.settings, {
+      developmentSource: "config-templates/settings.release.json",
+      releaseSource: "config-templates/settings.release.json",
+      destination: "settings.json",
+    });
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -167,7 +176,7 @@ test("4.0.0b1 installGame copies live-translator into the support folder and upg
     "/translator/4.0.0b1/live-translator/live-translator-loader.js": 'console.log("loader");\n',
     "/translator/4.0.0b1/live-translator/install-manifest.json": "{}\n",
     "/translator/4.0.0b1/live-translator/version.json": "{\"version\":\"4.0.0b1\"}\n",
-    "/translator/4.0.0b1/live-translator/settings.json": "{\"existing\":false}\n",
+    "/translator/4.0.0b1/live-translator/config-templates/settings.release.json": "{\"existing\":false}\n",
     "/translator/4.0.0b1/live-translator/translator.json": "{\"provider\":\"local\"}\n",
     "/translator/4.0.0b1/live-translator/gui/index.html": "<!doctype html>\n",
   }, url);
@@ -190,6 +199,10 @@ test("4.0.0b1 installGame copies live-translator into the support folder and upg
     'console.log("loader");\n',
   );
   assert.equal(supportHandle.readFileText("settings.json"), "{\"existing\":true}\n");
+  assert.equal(
+    supportHandle.readFileTextAtPath("config-templates/settings.release.json"),
+    "{\"existing\":false}\n",
+  );
   assert.equal(supportHandle.readFileText("translator.json"), "{\"provider\":\"local\"}\n");
   assert.equal(supportHandle.readFileTextAtPath("gui/index.html"), "<!doctype html>\n");
   assert.equal(supportHandle.readFileText("version.json"), "{\"version\":\"4.0.0b1\"}\n");
@@ -208,9 +221,55 @@ test("4.0.0b1 installGame copies live-translator into the support folder and upg
   assert.deepEqual(result, {
     packageUpdates: 0,
     pluginEntryAdded: true,
-    filesCopied: 5,
+    filesCopied: 6,
     supportDirectory: "js/plugins/live-translator",
   });
+});
+
+test("4.0.0b1 installGame creates settings.json from the release template when root settings are absent", async () => {
+  const rootHandle = createFakeDirectory("Game");
+  const jsHandle = rootHandle.addDirectory("js");
+  const pluginsHandle = jsHandle.addDirectory("plugins");
+
+  rootHandle.setFileText("package.json", '{"name":"Game"}\n');
+  jsHandle.setFileText("plugins.js", "[]\n");
+
+  const manifest = createFourZeroManifest();
+  const releaseSettings = '{\n  "checkUpdates": true\n}\n';
+  const originalFetch = globalThis.fetch;
+  const requests = [];
+  globalThis.fetch = async (url) => {
+    requests.push(new URL(String(url)).pathname);
+    return createFetchResponse({
+      "/translator/4.0.0b1/live-translator/live-translator-loader.js": 'console.log("loader");\n',
+      "/translator/4.0.0b1/live-translator/install-manifest.json": "{}\n",
+      "/translator/4.0.0b1/live-translator/version.json": "{\"version\":\"4.0.0b1\"}\n",
+      "/translator/4.0.0b1/live-translator/config-templates/settings.release.json": releaseSettings,
+      "/translator/4.0.0b1/live-translator/translator.json": "{\"provider\":\"local\"}\n",
+      "/translator/4.0.0b1/live-translator/gui/index.html": "<!doctype html>\n",
+    }, url);
+  };
+
+  let result;
+  try {
+    result = await installGame(rootHandle, manifest, {
+      baseUrl: "https://example.test/translator/4.0.0b1/app.mjs",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  const supportHandle = pluginsHandle.getDirectory("live-translator");
+  assert.equal(supportHandle.readFileText("settings.json"), releaseSettings);
+  assert.equal(
+    supportHandle.readFileTextAtPath("config-templates/settings.release.json"),
+    releaseSettings,
+  );
+  assert.equal(
+    requests.includes("/translator/4.0.0b1/live-translator/settings.json"),
+    false,
+  );
+  assert.equal(result.filesCopied, 7);
 });
 
 function createFetchResponse(assets, url) {
