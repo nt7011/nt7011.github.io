@@ -20,6 +20,7 @@ test("Pages workflow publishes translator version data for install and static ch
   assert.match(workflow, /stable/);
   assert.match(workflow, /prerelease/);
   assert.match(workflow, /const recommendedBeta = normalizeVersion\(manifest\["recommended-beta"\]\)/);
+  assert.match(workflow, /available-versions\.json must define one recommended-beta version\./);
   assert.match(workflow, /release_branch="release"/);
   assert.match(workflow, /tag="dist-\$version"/);
   assert.match(workflow, /payload_dir="live-translator"/);
@@ -48,7 +49,6 @@ test("Pages workflow publishes translator version data for install and static ch
   assert.match(workflow, /replaceAll\('href="\.\/styles\.css"', `href="\.\/\$\{data\.recommended\}\/styles\.css"`\)/);
   assert.match(workflow, /replaceAll\('src="\.\/app\.mjs"', `src="\.\/\$\{data\.recommended\}\/app\.mjs"`\)/);
   assert.match(workflow, /fs\.writeFileSync\("info\/translator-version\.json"/);
-  assert.match(workflow, /version: data\.recommended/);
   assert.match(workflow, /recommended: data\.recommended/);
   assert.match(workflow, /"recommended-beta": data\.recommendedBeta/);
   assert.match(workflow, /::warning::Missing version\.json/);
@@ -61,6 +61,7 @@ test("Pages workflow publishes translator version data for install and static ch
   assert.doesNotMatch(workflow, /repository: nt7011\/RPG-Maker-Live-Translator/);
   assert.doesNotMatch(workflow, /::error::Missing version\.json/);
   assert.doesNotMatch(workflow, /cp "\$target\/live-translator-installer\/version\.json" \.\/info\/translator-version\.json/);
+  assert.doesNotMatch(workflow, /version: data\.recommended/);
   assert.doesNotMatch(workflow, /"RecommendedBeta"/);
   assert.doesNotMatch(workflow, /"Recommended-Beta"/);
   assert.doesNotMatch(workflow, /readField\(\[\s*"recommended-beta",\s*"recommendedBeta"/);

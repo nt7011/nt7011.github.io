@@ -117,11 +117,9 @@ test("translator version metadata matches the approved version folder", async ()
   assert.deepEqual(availableVersions.stable, ["3.2.10"]);
   assert.deepEqual(availableVersions.prerelease, ["4.0.0b1"]);
   assert.deepEqual({
-    version: availableVersions.recommended,
     recommended: availableVersions.recommended,
     "recommended-beta": availableVersions["recommended-beta"],
   }, {
-    version: "3.2.10",
     recommended: "3.2.10",
     "recommended-beta": "4.0.0b1",
   });

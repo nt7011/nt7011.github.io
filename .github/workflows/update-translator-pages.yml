@@ -83,12 +83,13 @@ jobs:
             throw new Error("available-versions.json must define one recommended version.");
           }
           const recommendedBeta = normalizeVersion(manifest["recommended-beta"]);
+          if (!recommendedBeta) {
+            throw new Error("available-versions.json must define one recommended-beta version.");
+          }
 
           const versions = [];
           addVersion(recommended, "recommended");
-          if (recommendedBeta) {
-            addVersion(recommendedBeta, "recommended-beta");
-          }
+          addVersion(recommendedBeta, "recommended-beta");
           for (const version of normalizeVersionList(readField(["stable", "Stable"]))) {
             addVersion(version, "stable");
           }
@@ -209,7 +210,6 @@ jobs:
             .replaceAll('href="../../"', 'href="../"');
           fs.writeFileSync("translator/index.html", latestTranslatorPage);
           fs.writeFileSync("info/translator-version.json", JSON.stringify({
-            version: data.recommended,
             recommended: data.recommended,
             "recommended-beta": data.recommendedBeta,
           }, null, 2) + "\n");
