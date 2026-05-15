@@ -1407,10 +1407,7 @@ function renderSettingsConfig(container, config) {
   ]));
   container.append(translationSection);
 
-  const textDisplaySection = createConfigGroup(
-    "config.section.textDisplay",
-    "config-group--soft-divider",
-  );
+  const textDisplaySection = createConfigGroup("config.section.textDisplay");
   textDisplaySection.append(buildConfigFieldRow([
     { configKey: "settings", config, field: GAME_MESSAGE_TEXT_SCALE_FIELD },
     { configKey: "settings", config, field: TEXT_SCALE_OTHERS_FIELD },
@@ -1420,10 +1417,7 @@ function renderSettingsConfig(container, config) {
 
   container.append(buildTextManipulationPanel(config));
 
-  const appBehaviorSection = createConfigGroup(
-    "config.section.appBehavior",
-    "config-group--soft-divider",
-  );
+  const appBehaviorSection = createConfigGroup("config.section.appBehavior");
   appBehaviorSection.append(buildConfigFieldRow([
     { configKey: "settings", config, field: DISABLE_GUI_AUTO_LAUNCH_FIELD },
     { configKey: "settings", config, field: DIAGNOSTICS_PERFORMANCE_MODE_FIELD },
@@ -1439,45 +1433,27 @@ function renderTranslatorConfig(container, config, settingsConfig) {
     return;
   }
 
-  const providerSection = document.createElement("section");
-  providerSection.className = "config-group";
-
-  const providerHeading = document.createElement("h4");
-  providerHeading.className = "config-group-title";
-  providerHeading.textContent = t("config.section.provider");
-  providerSection.append(providerHeading);
+  const providerSection = createConfigGroup("config.section.provider");
   providerSection.append(buildProviderToggle(config));
 
   const provider = getSelectedProvider(config);
   if (provider === "none") {
-    const providerNote = document.createElement("p");
-    providerNote.className = "config-group-note";
-    providerNote.textContent = t("config.section.noneSettings.note");
-    providerSection.append(providerNote);
+    appendConfigGroupNote(providerSection, t("config.section.noneSettings.note"));
     container.append(providerSection);
     return;
   }
 
   container.append(providerSection);
 
-  const settingsSection = document.createElement("section");
-  settingsSection.className = "config-group";
-  if (provider === "local") {
-    settingsSection.classList.add("local-settings-group");
-  }
-
-  const settingsHeading = document.createElement("h4");
-  settingsHeading.className = "config-group-title";
-  settingsHeading.textContent = provider === "deepl"
-    ? t("config.section.deeplSettings")
-    : t("config.section.localSettings");
-  settingsSection.append(settingsHeading);
+  const settingsSection = createConfigGroup(
+    provider === "deepl" ? "config.section.deeplSettings" : "config.section.localSettings",
+    ...(provider === "local" ? ["local-settings-group"] : []),
+  );
 
   if (provider === "local") {
-    const settingsNote = document.createElement("p");
-    settingsNote.className = "config-group-note";
-    settingsNote.textContent = t("config.section.localSettings.note");
-    settingsSection.append(settingsNote);
+    appendConfigGroupNote(settingsSection, t("config.section.localSettings.note"));
+  } else if (provider === "deepl") {
+    appendConfigGroupNote(settingsSection, t("provider.deepl.description"));
   }
 
   const fieldGrid = document.createElement("div");
@@ -1513,7 +1489,7 @@ function renderTranslatorConfig(container, config, settingsConfig) {
 
 function createConfigGroup(titleKey, ...classNames) {
   const section = document.createElement("section");
-  section.className = ["config-group", ...classNames].join(" ");
+  section.className = ["config-group", ...classNames].filter(Boolean).join(" ");
 
   const heading = document.createElement("h4");
   heading.className = "config-group-title";
@@ -1521,6 +1497,13 @@ function createConfigGroup(titleKey, ...classNames) {
   section.append(heading);
 
   return section;
+}
+
+function appendConfigGroupNote(section, text) {
+  const note = document.createElement("p");
+  note.className = "config-group-note";
+  note.textContent = text;
+  section.append(note);
 }
 
 function buildConfigFieldRow(items) {
@@ -1542,7 +1525,7 @@ function buildConfigFieldRow(items) {
 
 function buildTextManipulationPanel(config) {
   const panel = document.createElement("details");
-  panel.className = "config-group config-collapsible config-group--soft-divider";
+  panel.className = "config-group config-collapsible";
   panel.open = hasTextManipulationRules(config);
 
   const summary = document.createElement("summary");
@@ -1584,7 +1567,7 @@ function hasRuleListContent(value) {
 function buildProviderToggle(config) {
   const provider = getSelectedProvider(config);
   const group = document.createElement("div");
-  group.className = "config-radio-group";
+  group.className = "config-field-row config-field-row--provider";
 
   for (const option of [
     {
@@ -1595,7 +1578,6 @@ function buildProviderToggle(config) {
     {
       value: "deepl",
       label: "deepl",
-      descriptionKey: "provider.deepl.description",
       tooltipKey: "provider.deepl.tooltip",
     },
     { value: "none", label: "none", tooltipKey: "provider.none.tooltip" },
@@ -1622,18 +1604,12 @@ function buildProviderToggle(config) {
     text.textContent = option.label;
     text.title = t(option.tooltipKey);
 
-    const optionCopy = document.createElement("span");
-    optionCopy.className = "config-radio-copy";
-    optionCopy.append(text);
-    if (option.descriptionKey) {
-      const description = document.createElement("span");
-      description.className = "config-radio-description";
-      description.textContent = t(option.descriptionKey);
-      optionCopy.append(description);
-    }
+    label.append(input, text);
 
-    label.append(input, optionCopy);
-    group.append(label);
+    const wrapper = document.createElement("div");
+    wrapper.className = "config-field config-field--provider-option";
+    wrapper.append(label);
+    group.append(wrapper);
   }
 
   return group;

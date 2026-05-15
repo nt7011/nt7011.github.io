@@ -465,7 +465,7 @@ button:disabled {
 .config-fields--translation:not(:empty) {
   margin-top: 20px;
   padding-top: 20px;
-  border-top: 1px dashed color-mix(in srgb, var(--border) 75%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
 }
 
 .precacher-panel {
@@ -526,17 +526,12 @@ button:disabled {
   cursor: not-allowed;
 }
 
-.config-group + .config-group {
-  margin-top: 20px;
-}
-
-.config-group--soft-divider {
-  padding-top: 18px;
-  border-top: 1px dashed color-mix(in srgb, var(--border) 75%, transparent);
-}
-
 .config-group-title {
-  margin-bottom: 12px;
+  margin: 0 0 12px;
+  display: block;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.3;
   text-transform: capitalize;
 }
 
@@ -544,6 +539,30 @@ button:disabled {
   margin-bottom: 12px;
   color: var(--muted);
   font-size: 0.95rem;
+}
+
+.config-fields > .config-group + .config-group {
+  margin-top: 0;
+}
+
+.config-fields > .config-group:not(.config-collapsible):not(:last-child) {
+  margin-bottom: 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+}
+
+.config-fields > .config-collapsible:not(:last-child) {
+  position: relative;
+  margin-bottom: 38px;
+}
+
+.config-fields > .config-collapsible:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -18px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
 }
 
 .config-field-grid {
@@ -556,7 +575,7 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
   gap: 0;
-  align-items: start;
+  align-items: stretch;
 }
 
 .config-field-row > .config-field {
@@ -579,25 +598,40 @@ button:disabled {
 
 .config-collapsible {
   display: block;
+  padding: 10px 12px;
+  border: 1px solid #f4d7e5;
+  border-radius: 8px;
+  background: #fff8fc;
+  color: var(--muted);
 }
 
 .config-collapsible-summary {
-  min-height: 32px;
   cursor: pointer;
+  color: var(--text);
+  overflow-wrap: anywhere;
 }
 
 .config-collapsible-summary::marker {
   color: var(--muted);
 }
 
+.config-collapsible-summary:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  outline-offset: 2px;
+}
+
+.config-collapsible[open] .config-collapsible-summary {
+  margin-bottom: 8px;
+}
+
 .config-collapsible-title {
-  margin-bottom: 0;
-  margin-left: 8px;
-  text-transform: none;
+  display: inline;
+  margin: 0;
 }
 
 .config-collapsible-content {
-  margin-top: 12px;
+  margin-top: 0;
+  padding: 0;
 }
 
 @media (min-width: 760px) {
@@ -720,30 +754,40 @@ button:disabled {
 
 .config-radio-option {
   display: inline-flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
   min-height: 44px;
   font-weight: 600;
+  width: fit-content;
 }
 
 .config-radio-option input {
   width: 18px;
   height: 18px;
-  margin: 13px 0 0;
+  margin: 0;
 }
 
-.config-radio-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-height: 44px;
+.config-field-row--provider .config-field--provider-option {
   justify-content: center;
 }
 
-.config-radio-description {
-  color: var(--muted);
-  font-size: 0.9rem;
-  font-weight: 400;
+.config-field-row--provider .config-radio-option {
+  width: 100%;
+}
+
+.config-field-row--provider .config-radio-option code {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.config-field-row--provider .config-radio-option input {
+  width: 18px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  flex: 0 0 18px;
 }
 
 .config-field input,
