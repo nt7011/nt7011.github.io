@@ -87,6 +87,10 @@ test("4.0.0b1 rule editor localization uses beta copy and Japanese examples", ()
     "Static translation will be performed using user-defined regex rules. Use one rule per line in the form regex => translation.",
   );
   assert.equal(
+    en("field.diagnostics.performanceMode.description"),
+    "Keep minimal diagnostics for performance.",
+  );
+  assert.equal(
     en("field.overrideTranslationRegex.placeholder"),
     "^ゴールド:\\s*(\\d+)$ => Gold: $1\n/^体力:\\s*(\\d+)$/i => HP: $1",
   );
@@ -107,6 +111,10 @@ test("4.0.0b1 rule editor localization uses beta copy and Japanese examples", ()
     "선택지와 조건 뒤에 있는 텍스트를 포함해 앞으로 표시될 Game Message 텍스트를 미리 확인하고 사전 번역합니다.",
   );
   assert.equal(
+    ko("field.diagnostics.performanceMode.description"),
+    "성능을 위해 진단 정보를 최소한으로 유지합니다.",
+  );
+  assert.equal(
     ko("field.substitutePlaintextBeforeTranslation.description"),
     "번역을 거치기 전에 원본 텍스트를 대체합니다. 이름에 사용하기 좋습니다. 한 줄에 original => replacement 형식으로 규칙 하나를 입력하세요.",
   );
@@ -120,6 +128,9 @@ test("4.0.0b1 upgrade defaults backfill hidden and visible beta settings only wh
   const defaultConfigs = {
     settings: {
       enableForesight: true,
+      diagnostics: {
+        performanceMode: true,
+      },
       showForesightSpoilers: false,
       ignoreTranslationRegex: [],
       overrideTranslationRegex: [],
@@ -135,6 +146,7 @@ test("4.0.0b1 upgrade defaults backfill hidden and visible beta settings only wh
 
   const result = applyMissingConfigPathDefaults(defaultConfigs, installedConfigs, [
     ["settings", "enableForesight"],
+    ["settings", "diagnostics", "performanceMode"],
     ["settings", "showForesightSpoilers"],
     ["settings", "ignoreTranslationRegex"],
     ["settings", "overrideTranslationRegex"],
@@ -142,6 +154,7 @@ test("4.0.0b1 upgrade defaults backfill hidden and visible beta settings only wh
   ]);
 
   assert.deepEqual(result.defaultedFields, [
+    "settings.json:diagnostics.performanceMode",
     "settings.json:showForesightSpoilers",
     "settings.json:overrideTranslationRegex",
     "settings.json:substitutePlaintextBeforeTranslation",
@@ -149,6 +162,9 @@ test("4.0.0b1 upgrade defaults backfill hidden and visible beta settings only wh
   assert.deepEqual(result.configs, {
     settings: {
       enableForesight: false,
+      diagnostics: {
+        performanceMode: true,
+      },
       showForesightSpoilers: false,
       ignoreTranslationRegex: ["^skip$"],
       overrideTranslationRegex: [],

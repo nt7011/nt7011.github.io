@@ -66,11 +66,20 @@ const DISABLE_GUI_AUTO_LAUNCH_FIELD = {
   descriptionKey: "field.disableGuiAutoLaunch.description",
   tooltipKey: "field.disableGuiAutoLaunch.tooltip",
 };
+const DIAGNOSTICS_PERFORMANCE_MODE_FIELD = {
+  id: "diagnostics.performanceMode",
+  path: ["diagnostics", "performanceMode"],
+  inputKind: "checkbox",
+  label: "performanceMode",
+  descriptionKey: "field.diagnostics.performanceMode.description",
+  tooltipKey: "field.diagnostics.performanceMode.tooltip",
+};
 const REINSTALL_DEFAULT_CONFIG_PATHS = [
   ["settings", ...CHECK_UPDATES_FIELD.path],
 ];
 const UPGRADE_DEFAULT_CONFIG_PATHS = [
   ["settings", "enableForesight"],
+  ["settings", "diagnostics", "performanceMode"],
   ["settings", "showForesightSpoilers"],
   ["settings", "ignoreTranslationRegex"],
   ["settings", "overrideTranslationRegex"],
@@ -1417,6 +1426,7 @@ function renderSettingsConfig(container, config) {
   );
   appBehaviorSection.append(buildConfigFieldRow([
     { configKey: "settings", config, field: DISABLE_GUI_AUTO_LAUNCH_FIELD },
+    { configKey: "settings", config, field: DIAGNOSTICS_PERFORMANCE_MODE_FIELD },
     { configKey: "settings", config, field: CHECK_UPDATES_FIELD },
   ]));
   container.append(appBehaviorSection);
