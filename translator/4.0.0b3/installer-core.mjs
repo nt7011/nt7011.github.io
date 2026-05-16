@@ -26,6 +26,12 @@ export const CONFIG_FILE_MAP = Object.freeze({
 });
 
 const CONFIG_FILE_NAMES = new Set(Object.values(CONFIG_FILE_MAP));
+const CONFIG_SAFETY_OVERRIDES = Object.freeze([
+  {
+    path: ["settings", "diagnostics", "performanceMode"],
+    value: false,
+  },
+]);
 const INSTALL_MANIFEST_FILE_NAME = "install-manifest.json";
 const DEFAULT_SETTINGS_RELEASE_SOURCE = "config-templates/settings.release.json";
 const DEFAULT_SETTINGS_INSTALL = Object.freeze({
@@ -397,7 +403,8 @@ export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
     configs,
     options.defaultMissingConfigPaths,
   );
-  const missingFields = getMissingConfigFields(defaultConfigs, defaulted.configs);
+  const defaultedConfigs = applyConfigSafetyOverrides(defaulted.configs);
+  const missingFields = getMissingConfigFields(defaultConfigs, defaultedConfigs);
   if (missingFields.length > 0) {
     return {
       available: true,
@@ -425,7 +432,7 @@ export async function loadInstalledConfigs(rootHandle, manifest, options = {}) {
     missingFields: [],
     requiresReinstall: false,
     configs,
-    defaultedConfigs: defaulted.defaultedFields.length > 0 ? defaulted.configs : null,
+    defaultedConfigs: defaulted.defaultedFields.length > 0 ? defaultedConfigs : null,
     defaultedFields: defaulted.defaultedFields,
     supportDirectoryPath,
     reason: t("core.editingInstalledConfigs", { path: supportDirectoryPath }),
@@ -736,6 +743,7 @@ export async function installGame(rootHandle, manifest, options = {}) {
 
 export async function saveInstalledConfigs(rootHandle, manifest, configs, options = {}) {
   const t = getTranslator(options);
+  const savableConfigs = applyConfigSafetyOverrides(configs);
   const inspection = await inspectGameDirectory(rootHandle, { t });
   if (!inspection.valid) {
     throw new Error(inspection.reason);
@@ -759,7 +767,7 @@ export async function saveInstalledConfigs(rootHandle, manifest, configs, option
     }
 
     const existingData = await readTextFile(fileHandle);
-    await writeTextFile(fileHandle, serializeConfigFile(configs[key]), existingData.hasBom);
+    await writeTextFile(fileHandle, serializeConfigFile(savableConfigs[key]), existingData.hasBom);
   }
 
   return {
@@ -951,10 +959,15 @@ async function fetchAssetText(url, t) {
 async function fetchSettingsBundleFile(manifest, bundleUrl, t) {
   const settings = manifest.install.settings;
   const source = await fetchSettingsSource(settings, bundleUrl, t);
+  const sourceConfigs = {
+    settings: JSON.parse(source.text),
+  };
+  const safeConfigs = applyConfigSafetyOverrides(sourceConfigs);
+  const changed = JSON.stringify(sourceConfigs) !== JSON.stringify(safeConfigs);
 
   return {
     name: settings.destination,
-    bytes: source.bytes,
+    bytes: changed ? encodeTextBytes(serializeConfigFile(safeConfigs.settings)) : source.bytes,
   };
 }
 
@@ -1115,6 +1128,23 @@ export function applyMissingConfigPathDefaults(defaultConfigs, installedConfigs,
     configs,
     defaultedFields,
   };
+}
+
+export function applyConfigSafetyOverrides(configs) {
+  const updatedConfigs = cloneJsonValue(configs ?? {});
+
+  for (const override of CONFIG_SAFETY_OVERRIDES) {
+    const currentValue = getConfigValueAtPath(updatedConfigs, override.path);
+    if (typeof currentValue === "undefined") {
+      continue;
+    }
+
+    if (currentValue !== override.value) {
+      setConfigValueAtPath(updatedConfigs, override.path, cloneJsonValue(override.value));
+    }
+  }
+
+  return updatedConfigs;
 }
 
 function getTranslator(options = {}) {

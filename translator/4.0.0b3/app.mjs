@@ -1,4 +1,5 @@
 import {
+  applyConfigSafetyOverrides,
   ensureReadWritePermission,
   INSTALL_MANIFEST_URL,
   INSTALL_VERSION_URL,
@@ -73,6 +74,8 @@ const DIAGNOSTICS_PERFORMANCE_MODE_FIELD = {
   label: "performanceMode",
   descriptionKey: "field.diagnostics.performanceMode.description",
   tooltipKey: "field.diagnostics.performanceMode.tooltip",
+  disabled: true,
+  forcedValue: false,
 };
 const REINSTALL_DEFAULT_CONFIG_PATHS = [
   ["settings", ...CHECK_UPDATES_FIELD.path],
@@ -657,6 +660,7 @@ async function handleSaveConfig() {
       throw new Error(t("error.permissionDenied"));
     }
 
+    state.configDraft = applyConfigSafetyOverrides(state.configDraft);
     const result = await saveInstalledConfigs(state.rootHandle, state.manifest, state.configDraft, { t });
     pushLog(
       t("log.configSaved", { path: result.supportDirectory }),
@@ -678,7 +682,7 @@ function handleResetConfig() {
     return;
   }
 
-  state.configDraft = cloneConfigSet(state.loadedConfigs);
+  state.configDraft = applyConfigSafetyOverrides(state.loadedConfigs);
   state.configUnsavedMessage = "";
   state.configUnsavedReminderFlashPending = false;
   state.configErrors = new Set();
@@ -842,11 +846,11 @@ function applyConfigSnapshot(snapshot, options = {}) {
 
 function getCurrentConfigDraft() {
   if (state.configDraft) {
-    return cloneConfigSet(state.configDraft);
+    return applyConfigSafetyOverrides(state.configDraft);
   }
 
   if (state.loadedConfigs) {
-    return cloneConfigSet(state.loadedConfigs);
+    return applyConfigSafetyOverrides(state.loadedConfigs);
   }
 
   return null;
@@ -858,16 +862,16 @@ function createConfigDraftFromSnapshot(snapshot, loadedConfigs, preservedConfigD
   }
 
   if (snapshot.editable && preservedConfigDraft) {
-    return mergeConfigDefaults(loadedConfigs, preservedConfigDraft, {
+    return applyConfigSafetyOverrides(mergeConfigDefaults(loadedConfigs, preservedConfigDraft, {
       useDefaultForPaths: REINSTALL_DEFAULT_CONFIG_PATHS,
-    });
+    }));
   }
 
   if (snapshot.editable && defaultedConfigs) {
-    return cloneConfigSet(defaultedConfigs);
+    return applyConfigSafetyOverrides(defaultedConfigs);
   }
 
-  return cloneConfigSet(loadedConfigs);
+  return applyConfigSafetyOverrides(loadedConfigs);
 }
 
 function supportsInstallation() {
@@ -1921,9 +1925,12 @@ function getRuleListTextareaRows(field, value) {
 }
 
 function buildFieldInput(configKey, field, currentValue) {
+  const effectiveValue = getFieldEffectiveValue(field, currentValue);
+  const disabled = isFieldDisabled(field);
   const wrapper = document.createElement("div");
   wrapper.className = "config-field";
   wrapper.classList.add(getFieldClassName(field));
+  wrapper.classList.toggle("is-disabled", disabled);
   if (field.inputKind === "checkbox") {
     wrapper.classList.add("checkbox-field");
   }
@@ -1939,9 +1946,14 @@ function buildFieldInput(configKey, field, currentValue) {
     const input = document.createElement("input");
     input.id = inputId;
     input.type = "checkbox";
-    input.checked = Boolean(currentValue);
-    input.disabled = !state.configEditable;
+    input.checked = Boolean(effectiveValue);
+    input.disabled = !state.configEditable || disabled;
     input.addEventListener("change", () => {
+      if (disabled) {
+        input.checked = Boolean(effectiveValue);
+        return;
+      }
+
       setValueAtPath(state.configDraft[configKey], field.path, input.checked);
       clearFieldError(errorKey, input);
       renderConfigStatus();
@@ -1976,9 +1988,9 @@ function buildFieldInput(configKey, field, currentValue) {
   label.append(pathText);
   wrapper.append(label);
 
-  const input = createFieldControl(field, inputId, currentValue);
+  const input = createFieldControl(field, inputId, effectiveValue);
   input.title = getFieldTooltipText(field);
-  input.disabled = !state.configEditable;
+  input.disabled = !state.configEditable || disabled;
   if (hasFieldValidationError(configKey, field)) {
     input.setAttribute("aria-invalid", "true");
   }
@@ -2001,6 +2013,16 @@ function buildFieldInput(configKey, field, currentValue) {
   }
 
   return wrapper;
+}
+
+function getFieldEffectiveValue(field, currentValue) {
+  return Object.prototype.hasOwnProperty.call(field, "forcedValue")
+    ? field.forcedValue
+    : currentValue;
+}
+
+function isFieldDisabled(field) {
+  return Boolean(field.disabled);
 }
 
 function createFieldControl(field, inputId, currentValue) {

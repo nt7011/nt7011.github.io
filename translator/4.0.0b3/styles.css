@@ -698,6 +698,16 @@ button:disabled {
   gap: 8px;
 }
 
+.config-field.is-disabled {
+  color: var(--muted);
+  opacity: 0.62;
+}
+
+.config-field.is-disabled label,
+.config-field.is-disabled input {
+  cursor: not-allowed;
+}
+
 .config-field.checkbox-field {
   flex: 1 1 24rem;
   min-width: min(100%, 18rem);
