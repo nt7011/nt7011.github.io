@@ -33,8 +33,8 @@ function assertStaticDefaults(html) {
   );
 }
 
-test("4.0.0b2 installer HTML defaults match the loading state", () => {
-  const betaHtml = readProjectFile("translator", "4.0.0b2", "index.html");
+test("4.0.0b4 installer HTML defaults match the loading state", () => {
+  const betaHtml = readProjectFile("translator", "4.0.0b4", "index.html");
 
   assertStaticDefaults(betaHtml);
   assert.match(

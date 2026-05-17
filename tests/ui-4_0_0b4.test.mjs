@@ -10,8 +10,8 @@ function readProjectFile(...segments) {
   return readFileSync(path.join(projectRoot, ...segments), "utf8");
 }
 
-test("4.0.0b2 hides the empty config editor section in static markup", () => {
-  const betaHtml = readProjectFile("translator", "4.0.0b2", "index.html");
+test("4.0.0b4 hides the empty config editor section in static markup", () => {
+  const betaHtml = readProjectFile("translator", "4.0.0b4", "index.html");
   const stableHtml = readProjectFile("translator", "3.2.10", "index.html");
 
   assert.match(

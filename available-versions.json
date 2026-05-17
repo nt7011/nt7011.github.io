@@ -1,10 +1,10 @@
 {
   "recommended": "3.2.10",
-  "recommended-beta": "4.0.0b3",
+  "recommended-beta": "4.0.0b4",
   "stable": [
     "3.2.10"
   ],
   "prerelease": [
-    "4.0.0b3"
+    "4.0.0b4"
   ]
 }
