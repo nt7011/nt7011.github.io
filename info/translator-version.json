@@ -1,8 +1,8 @@
 {
-  "latest": "4.0.0b5",
+  "latest": "4.1.0",
   "latest-beta": "",
-  "recommended": "3.2.10",
-  "recommended-beta": "4.0.0b5",
+  "recommended": "4.1.0",
+  "recommended-beta": "",
   "version-aliases": {
     "4.0.0b5": "4.0.0"
   }
